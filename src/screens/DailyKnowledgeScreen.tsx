@@ -61,72 +61,54 @@ export default function DailyKnowledgeScreen() {
     try {
       if (!isRandom) setLoading(true);
       
-      let year, month, day;
-      
-      // Use a date that is definitely in the past to avoid 404s on fresh days
-      const targetDate = isRandom 
-        ? new Date(Date.now() - Math.floor(Math.random() * 365 * 24 * 60 * 60 * 1000))
-        : new Date(Date.now() - 24 * 60 * 60 * 1000); // Yesterday to be safe
+      let attempts = 0;
+      let validItem: any = null;
 
-      year = targetDate.getFullYear();
-      month = String(targetDate.getMonth() + 1).padStart(2, '0');
-      day = String(targetDate.getDate()).padStart(2, '0');
+      while (attempts < 3 && !validItem) {
+        const url = isRandom 
+          ? `https://dev.to/api/articles?tag=ai&per_page=20&page=${Math.floor(Math.random() * 5) + 1}`
+          : 'https://dev.to/api/articles?tag=ai&per_page=1';
 
-      // Wikipedia requires a User-Agent header for identification
-      const response = await fetch(`https://en.wikipedia.org/api/rest_v1/feed/featured/${year}/${month}/${day}`, {
-        headers: {
-          'User-Agent': 'ScheduleMeApp/1.0 (contact: chaperone@example.com)'
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Dev.to API error: ${response.status}`);
+        
+        const data = await response.json();
+        const item = isRandom && Array.isArray(data) && data.length > 0 
+           ? data[Math.floor(Math.random() * data.length)] 
+           : (Array.isArray(data) ? data[0] : data);
+
+        if (item && item.title) {
+          validItem = item;
         }
+        attempts++;
+      }
+
+      if (!validItem) throw new Error("Could not find tech news");
+
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setInsight({
+        category: "AI & Tech News",
+        icon: "robot-outline",
+        color: "#3B82F6", // Bright Blue for Tech
+        fact: validItem.title,
+        details: validItem.description + "\n\nAuthor: " + (validItem.user?.name || "Unknown"),
+        image: validItem.cover_image || validItem.social_image || undefined,
+        source: 'Dev.to'
       });
       
-      if (!response.ok) throw new Error(`Wikipedia response not OK: ${response.status}`);
+    } catch (error: any) {
+      console.warn("Dev.to fetch failed, using local facts:", error.message);
+      const d = new Date();
+      const start = new Date(d.getFullYear(), 0, 0);
+      const diff = (d.getTime() - start.getTime()) + ((start.getTimezoneOffset() - d.getTimezoneOffset()) * 60 * 1000);
+      const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
       
-      const data = await response.json();
+      const index = isRandom 
+        ? Math.floor(Math.random() * localFacts.length)
+        : dayOfYear % localFacts.length;
 
-      if (data.tfa) {
-        const tfa = data.tfa;
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setInsight({
-          category: tfa.description || "Historical Gem",
-          icon: "wikipedia",
-          color: colors.primary,
-          fact: tfa.normalizedtitle,
-          details: tfa.extract,
-          image: tfa.thumbnail ? tfa.thumbnail.source : (tfa.originalimage ? tfa.originalimage.source : undefined),
-          source: 'Wikipedia'
-        });
-      } else {
-        throw new Error("No Wikipedia tfa field");
-      }
-    } catch (error) {
-      console.warn("Wikipedia fetch failed, trying NASA:", error.message);
-      // Fallback to NASA
-      try {
-        const nResponse = await fetch('https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY');
-        
-        if (!nResponse.ok) {
-           const text = await nResponse.text();
-           throw new Error(`NASA API error (${nResponse.status}): ${text.slice(0, 50)}`);
-        }
-        
-        const nData = await nResponse.json();
-        setInsight({
-          category: "Cosmic Discovery",
-          icon: "star-shooting",
-          color: colors.secondary,
-          fact: nData.title,
-          details: nData.explanation,
-          image: nData.media_type === 'image' ? nData.url : undefined,
-          source: 'NASA'
-        });
-      } catch (nError) {
-        console.warn("NASA fallback failed, using local localFacts:", nError.message);
-        const d = new Date();
-        const start = new Date(d.getFullYear(), 0, 0);
-        const diff = (d.getTime() - start.getTime()) + ((start.getTimezoneOffset() - d.getTimezoneOffset()) * 60 * 1000);
-        const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
-        setInsight({ ...localFacts[dayOfYear % localFacts.length], source: 'Local' });
-      }
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setInsight({ ...localFacts[index], source: 'Local' });
     } finally {
       setLoading(false);
       setRefreshing(false);

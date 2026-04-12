@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ref, push, set, remove, get } from 'firebase/database';
 import { db } from '../config/firebase';
@@ -134,7 +135,8 @@ export default function WordListScreen() {
   if (loading) return <ActivityIndicator size="large" color={colors.secondary} style={{ marginTop: 20 }} />;
 
   return (
-    <ScrollView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView style={styles.container}>
       <View style={styles.inputGroup}>
         <View style={styles.row}>
           <TextInput 
@@ -190,8 +192,9 @@ export default function WordListScreen() {
         ))}
         {words.length === 0 && <Text style={styles.emptyText}>No words added yet.</Text>}
       </View>
-      <View style={{height: 40}} />
+      <View style={{height: 100}} />
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

@@ -10,6 +10,7 @@ import { colors, spacing } from '../theme';
 import CourseCard from '../components/CourseCard';
 import { CourseSession } from '../types';
 import { useIsFocused } from '@react-navigation/native';
+import { fetchSriLankaHolidays } from '../utils/srilankaHolidays';
 
 export default function CalendarScreen({ navigation }: any) {
   const { user } = useContext(AuthContext);
@@ -79,6 +80,29 @@ export default function CalendarScreen({ navigation }: any) {
         });
       }
       
+      const sriLankaHolidays = await fetchSriLankaHolidays();
+      
+      Object.entries(sriLankaHolidays).forEach(([dateStr, holiday]) => {
+        newMarked[dateStr] = {
+           ...newMarked[dateStr],
+           marked: true,
+           dotColor: '#EF4444' 
+        };
+        
+        if (dateStr === selectedDate) {
+           fetchedCourses.unshift({
+              id: `holiday-${dateStr}`,
+              moduleName: holiday.name,
+              type: holiday.type,
+              location: 'Sri Lanka 🇱🇰',
+              startTime: '00:00',
+              endTime: '23:59',
+              isRecurring: false,
+              colorIndicator: '#EF4444',
+           } as any);
+        }
+      });
+
       fetchedCourses.sort((a, b) => a.startTime.localeCompare(b.startTime));
       setCourses(fetchedCourses);
       
@@ -174,10 +198,10 @@ export default function CalendarScreen({ navigation }: any) {
                    moduleName={course.moduleName}
                    type={course.type}
                    location={course.location || 'TBD'}
-                   timeRange={`${course.startTime} - ${course.endTime}`}
+                   timeRange={course.startTime === '00:00' && course.endTime === '23:59' ? 'All Day' : `${course.startTime} - ${course.endTime}`}
                    colorIndicator={courseColor}
-                   onDelete={() => handleDelete(course.id as string, course.moduleName)}
-                   onEdit={() => handleEdit(course)}
+                   onDelete={String(course.id).startsWith('holiday-') ? undefined : () => handleDelete(course.id as string, course.moduleName)}
+                   onEdit={String(course.id).startsWith('holiday-') ? undefined : () => handleEdit(course)}
                  />
                );
             })}

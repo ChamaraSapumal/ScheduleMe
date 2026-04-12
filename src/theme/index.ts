@@ -1,13 +1,13 @@
 export const colors = {
-  background: '#15171D',
-  cardBackground: '#232630',
-  primary: '#5BC2D8', // Cyan
-  secondary: '#F8E954', // Yellow
-  textPrimary: '#FFFFFF',
-  textSecondary: '#A0A3AE',
-  textDark: '#15171D', // For text on yellow/cyan backgrounds
+  background: '#FFFFFF', // Clean white base
+  cardBackground: '#F4F4F4', // Slightly off-white for cards
+  primary: '#D9BC67', // Muted Mustard Yellow
+  secondary: '#A3947D', // Taupe/Beige
+  textPrimary: '#000000', // Black text
+  textSecondary: '#8B8B8B', // Gray text
+  textDark: '#000000', // Dark text for bright backgrounds
   error: '#FF5A5F',
-  greyBackground: '#1E2028',
+  greyBackground: '#EAEAEA',
 };
 
 export const spacing = {

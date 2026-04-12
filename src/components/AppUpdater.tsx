@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { ref, get } from 'firebase/database';
-import { db } from '../config/firebase';
+import React, { useEffect, useState, createContext, useContext } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
 
+export const UpdateContext = createContext<any>(null);
+
+export const useAppUpdate = () => useContext(UpdateContext);
+
 export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
-  const [updateRequired, setUpdateRequired] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [latestVersion, setLatestVersion] = useState('');
   const [downloadUrl, setDownloadUrl] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -18,24 +21,24 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
 
   const checkVersion = async () => {
     try {
-      // Fetch required version configuration from Firebase RTDB
-      const configRef = ref(db, 'appConfig/android');
-      const snapshot = await get(configRef);
+      const response = await fetch('https://api.github.com/repos/ChamaraSapumal/ScheduleMe/releases/latest');
+      if (!response.ok) return;
+      const data = await response.json();
       
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const requiredNativeVersion = data.requiredNativeVersion;
-        // The current app version comes from expo-constants (derived from app.json)
-        const currentVersion = Constants.expoConfig?.version || '1.0.0';
+      const remoteVersion = data.tag_name ? data.tag_name.replace('v', '') : '1.0.0';
+      const currentVersion = Constants.expoConfig?.version || '1.0.0';
 
-        // Check if the current version is LESS THAN the required version
-        if (compareVersions(requiredNativeVersion, currentVersion) > 0) {
-          setDownloadUrl(data.downloadUrl);
-          setUpdateRequired(true);
+      if (compareVersions(remoteVersion, currentVersion) > 0) {
+        setLatestVersion(remoteVersion);
+        
+        const apkAsset = data.assets?.find((asset: any) => asset.name.endsWith('.apk'));
+        if (apkAsset) {
+          setDownloadUrl(apkAsset.browser_download_url);
+          setUpdateAvailable(true);
         }
       }
     } catch (error) {
-      console.log('Error checking update version:', error);
+      console.log('Error checking GitHub release:', error);
     }
   };
 
@@ -92,30 +95,9 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <>
+    <UpdateContext.Provider value={{ updateAvailable, latestVersion, downloadUrl, isDownloading, downloadProgress, handleDownloadAndInstall, checkVersion }}>
       {children}
-      <Modal visible={updateRequired} animationType="slide" transparent={true}>
-        <View style={styles.modalContainer}>
-          <View style={styles.brutalistCard}>
-            <Text style={styles.title}>MAJOR UPDATE!</Text>
-            <Text style={styles.subtitle}>
-              A structural update is required. You must download the new App Version to continue using ScheduleMe.
-            </Text>
-
-            {isDownloading ? (
-              <View style={styles.progressContainer}>
-                <ActivityIndicator size="large" color="#000" />
-                <Text style={styles.progressText}>{Math.round(downloadProgress * 100)}%</Text>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.brutalistButton} onPress={handleDownloadAndInstall}>
-                <Text style={styles.buttonText}>DOWNLOAD & INSTALL</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </Modal>
-    </>
+    </UpdateContext.Provider>
   );
 };
 
