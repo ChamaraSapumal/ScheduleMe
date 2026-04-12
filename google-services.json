@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "651252888372",
+    "firebase_url": "https://scheduleme-f51b3-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "scheduleme-f51b3",
+    "storage_bucket": "scheduleme-f51b3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:651252888372:android:438b29ef64692879cc6b61",
+        "android_client_info": {
+          "package_name": "com.sapuxcreation.ScheduleMe"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "651252888372-mf977kqfah0u0oulc4gk29mi9bvidmhr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_UH2OE68dofE3lLzGGcUzns6xTLv-UhI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "651252888372-mf977kqfah0u0oulc4gk29mi9bvidmhr.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
