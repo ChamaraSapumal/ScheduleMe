@@ -1,7 +1,8 @@
 import React, { createContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { View, AppState, PanResponder } from 'react-native';
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { auth, db } from '../config/firebase';
+import { ref, get } from 'firebase/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AuthContextType {
@@ -14,6 +15,8 @@ interface AuthContextType {
   hasSeenOnboarding: boolean | null;
   completeOnboarding: () => Promise<void>;
   resetOnboarding: () => Promise<void>;
+  userName: string | null;
+  setUserName: (name: string | null) => void;
 }
 
 export const AuthContext = createContext<AuthContextType>({
@@ -26,6 +29,8 @@ export const AuthContext = createContext<AuthContextType>({
   hasSeenOnboarding: null,
   completeOnboarding: async () => {},
   resetOnboarding: async () => {},
+  userName: null,
+  setUserName: () => {},
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -33,6 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isUnlocked, setUnlocked] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   const appState = useRef(AppState.currentState);
   const backgroundTime = useRef<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -103,8 +109,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     checkOnboarding();
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      
+      if (currentUser) {
+        // 1. Try to load name from AsyncStorage immediately for zero-lag UI
+        try {
+          const cachedName = await AsyncStorage.getItem(`cached_name_${currentUser.uid}`);
+          if (cachedName) setUserName(cachedName);
+          
+          // 2. Fetch fresh name from Firebase
+          const profileRef = ref(db, `users/${currentUser.uid}/profile`);
+          const snap = await get(profileRef);
+          if (snap.exists()) {
+            const data = snap.val();
+            if (data.name) {
+              setUserName(data.name);
+              await AsyncStorage.setItem(`cached_name_${currentUser.uid}`, data.name);
+            }
+          }
+        } catch (err) {
+          console.warn('Error loading user profile data:', err);
+        }
+      } else {
+        setUserName(null);
+      }
+      
       setLoading(false);
     });
 
@@ -141,7 +171,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isAdmin = user?.email === 'chamarasecu21@gmail.com';
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout, isAdmin, isUnlocked, setUnlocked, hasSeenOnboarding, completeOnboarding, resetOnboarding }}>
+    <AuthContext.Provider value={{ 
+      user, loading, logout, isAdmin, isUnlocked, setUnlocked, 
+      hasSeenOnboarding, completeOnboarding, resetOnboarding,
+      userName, setUserName
+    }}>
       <View style={{ flex: 1 }} {...panResponder.panHandlers}>
         {children}
       </View>

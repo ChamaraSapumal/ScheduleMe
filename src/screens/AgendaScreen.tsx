@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ref, get, remove } from 'firebase/database';
@@ -10,23 +10,26 @@ import { colors, spacing } from '../theme';
 import CourseCard from '../components/CourseCard';
 import { CourseSession } from '../types';
 import { useIsFocused } from '@react-navigation/native';
+import { Dimensions } from 'react-native';
+
+const { width } = Dimensions.get('window');
 
 export default function AgendaScreen({ navigation }: any) {
-  const { user, isAdmin } = useContext(AuthContext);
+  const { user, isAdmin, userName } = useContext(AuthContext);
   const { showAlert } = useCustomAlert();
-  const displayName = user?.displayName || user?.email?.split('@')[0] || 'User';
+  
+  const greetingTitle = userName ? userName.split(' ')[0] : 'Student';
+  const avatarLetter = (userName || user?.email || 'S').charAt(0).toUpperCase();
   
   const [courses, setCourses] = useState<CourseSession[]>([]);
   const [loading, setLoading] = useState(true);
   const isFocused = useIsFocused();
 
-  // New state to allow picking "that day" inside Agenda
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weekDates, setWeekDates] = useState<Date[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    // Generate dates: 3 days ago to 10 days ahead
     const dates = [];
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -77,7 +80,6 @@ export default function AgendaScreen({ navigation }: any) {
       }
       
       fetchedCourses.sort((a, b) => a.startTime.localeCompare(b.startTime));
-      
       setCourses(fetchedCourses);
     } catch (error: any) {
       console.error(error);
@@ -123,7 +125,6 @@ export default function AgendaScreen({ navigation }: any) {
     return d.getDate() === selectedDate.getDate() && d.getMonth() === selectedDate.getMonth() && d.getFullYear() === selectedDate.getFullYear();
   };
 
-  // Color mapping logic natively inside Agenda for rendering cards
   const typeColors: any = {
     Lecture: '#3B82F6',   // Blue
     Lab: '#F59E0B',       // Amber/Orange
@@ -135,20 +136,24 @@ export default function AgendaScreen({ navigation }: any) {
       <View style={styles.container}>
         
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>
-            Agenda
-            {isAdmin && <Text style={{ color: colors.secondary, fontSize: 12 }}> (ADMIN)</Text>}
-          </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Add')}>
-            <MaterialCommunityIcons name="plus" size={28} color={colors.textPrimary} />
+          <TouchableOpacity 
+            style={styles.profileBtn} 
+            onPress={() => navigation.navigate('Tools', { screen: 'My profile' })}
+          >
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{avatarLetter}</Text>
+            </View>
+            <View>
+              <Text style={styles.greetingText}>Hello, {greetingTitle}</Text>
+              <Text style={styles.subtext}>Welcome back to class</Text>
+            </View>
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.profileSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
-          </View>
-          <Text style={styles.greeting}>My Timetable</Text>
+          <TouchableOpacity 
+            style={styles.addButton} 
+            onPress={() => navigation.navigate('Add')}
+          >
+            <MaterialCommunityIcons name="plus" size={24} color="#FFF" />
+          </TouchableOpacity>
         </View>
 
         {/* Date Strip */}
@@ -165,7 +170,11 @@ export default function AgendaScreen({ navigation }: any) {
               return (
                 <TouchableOpacity 
                   key={index} 
-                  style={[styles.dateCard, selected && styles.dateCardSelected, today && !selected && styles.dateCardToday]}
+                  style={[
+                    styles.dateCard, 
+                    selected && styles.dateCardSelected, 
+                    today && !selected && styles.dateCardToday
+                  ]}
                   onPress={() => setSelectedDate(d)}
                 >
                   <Text style={[styles.dayText, selected && styles.dayTextSelected]}>{getShortDay(d)}</Text>
@@ -177,21 +186,30 @@ export default function AgendaScreen({ navigation }: any) {
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Daily Schedule</Text>
+            <Text style={styles.courseCount}>{courses.length} Classes</Text>
+          </View>
+
           {loading ? (
             <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
           ) : courses.length === 0 ? (
             <View style={styles.emptyContainer}>
+              <Image 
+                source={require('../../assets/student_celebrating.png')} 
+                style={styles.emptyImage}
+                resizeMode="contain"
+              />
               <Text style={styles.emptyText}>No classes scheduled for {isToday(selectedDate) ? 'today' : 'this day'}.</Text>
               {isToday(selectedDate) && (
-                <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('Add')}>
-                  <Text style={styles.addButtonText}>Add your first class</Text>
+                <TouchableOpacity style={styles.inlineAddBtn} onPress={() => navigation.navigate('Add')}>
+                  <Text style={styles.inlineAddBtnText}>Schedule a Class</Text>
                 </TouchableOpacity>
               )}
             </View>
           ) : (
             <View style={styles.coursesList}>
               {courses.map((course) => {
-                 // Dynamic color based on type
                  const courseColor = typeColors[course.type] || course.colorIndicator || colors.primary;
                  return (
                    <CourseCard 
@@ -221,33 +239,120 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.l,
-    paddingHorizontal: spacing.m,
-    paddingTop: spacing.s,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
   },
-  headerTitle: {
-    color: colors.textPrimary,
-    fontSize: 28,
+  profileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: { 
+    width: 45, 
+    height: 45, 
+    borderRadius: 22.5, 
+    backgroundColor: colors.primary, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginRight: 12,
+    elevation: 4,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  avatarText: { color: colors.white, fontSize: 18, fontWeight: 'bold' },
+  greetingText: { color: colors.textPrimary, fontSize: 16, fontWeight: '800' },
+  subtext: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  addButton: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+  },
+  dateStripContainer: { marginBottom: 15, marginTop: 10 },
+  dateStrip: { paddingHorizontal: 20, gap: 12 },
+  dateCard: { 
+    paddingVertical: 15, 
+    paddingHorizontal: 12, 
+    borderRadius: 20, 
+    backgroundColor: colors.cardBackground, 
+    alignItems: 'center', 
+    width: 65,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+  },
+  dateCardSelected: { 
+    backgroundColor: colors.primary,
+    elevation: 8,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.4,
+  },
+  dateCardToday: { 
+    borderWidth: 1.5, 
+    borderColor: colors.primary,
+  },
+  dayText: { color: colors.textSecondary, fontSize: 12, fontWeight: '800', marginBottom: 6 },
+  dayTextSelected: { color: colors.white },
+  dateText: { color: colors.textPrimary, fontSize: 20, fontWeight: '900' },
+  dateTextSelected: { color: colors.white },
+  content: { padding: 20, paddingTop: 10 },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 22,
     fontWeight: '900',
-    letterSpacing: -1,
+    color: colors.primary,
+    letterSpacing: -0.5,
   },
-  profileSection: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.m, paddingHorizontal: spacing.m },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: spacing.m },
-  avatarText: { color: colors.textDark, fontSize: 20, fontWeight: 'bold' },
-  greeting: { color: colors.textPrimary, fontSize: 18, fontWeight: 'bold' },
-  dateStripContainer: { marginBottom: spacing.m },
-  dateStrip: { paddingHorizontal: spacing.m, gap: spacing.s },
-  dateCard: { paddingVertical: spacing.m, paddingHorizontal: spacing.m, borderRadius: 12, backgroundColor: colors.cardBackground, alignItems: 'center', width: 60 },
-  dateCardSelected: { backgroundColor: colors.primary },
-  dateCardToday: { borderWidth: 1, borderColor: colors.primary },
-  dayText: { color: colors.textSecondary, fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
-  dayTextSelected: { color: colors.textDark },
-  dateText: { color: colors.textPrimary, fontSize: 18, fontWeight: 'bold' },
-  dateTextSelected: { color: colors.textDark },
-  content: { padding: spacing.m, paddingTop: 0 },
-  coursesList: { gap: spacing.m },
-  emptyContainer: { alignItems: 'center', marginTop: spacing.xl },
-  emptyText: { color: colors.textSecondary, fontSize: 16, marginBottom: spacing.m },
-  addButton: { paddingVertical: spacing.s, paddingHorizontal: spacing.l, backgroundColor: colors.cardBackground, borderRadius: 8 },
-  addButtonText: { color: colors.textPrimary, fontWeight: 'bold' }
+  courseCount: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  coursesList: { gap: 15 },
+  emptyContainer: { 
+    alignItems: 'center', 
+    marginTop: 40,
+    backgroundColor: '#FFFFFF', // Seamless blend
+    borderRadius: 40,
+    padding: 30,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+  emptyImage: {
+    width: width * 0.75, // Increased size
+    height: width * 0.75,
+    marginBottom: 10,
+  },
+  emptyText: { 
+    color: colors.textSecondary, 
+    fontSize: 16, 
+    textAlign: 'center',
+    fontWeight: '700',
+    lineHeight: 24,
+    marginBottom: 20,
+    paddingHorizontal: 10,
+  },
+  inlineAddBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: 15,
+  },
+  inlineAddBtnText: {
+    color: '#FFF',
+    fontWeight: '800',
+    fontSize: 14,
+  }
 });

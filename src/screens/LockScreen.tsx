@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, LayoutAnimation, Platform, UIManager, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, LayoutAnimation, Platform, UIManager, Dimensions, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -15,38 +15,27 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 export default function LockScreen() {
-  const { user, setUnlocked, logout } = useContext(AuthContext);
+  const { user, setUnlocked, logout, userName } = useContext(AuthContext);
+  const firstName = userName ? userName.split(' ')[0] : 'Student';
   const { showAlert } = useCustomAlert();
   const [pin, setPin] = useState('');
   const [storedPin, setStoredPin] = useState<string | null>(null);
   const [setupMode, setSetupMode] = useState(false);
-  const [setupStep, setSetupStep] = useState(1); 
+  const [setupStep, setSetupStep] = useState(1);
   const [firstPin, setFirstPin] = useState('');
-  
+
   // Animations
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const dotAnims = useRef([new Animated.Value(1), new Animated.Value(1), new Animated.Value(1), new Animated.Value(1)]).current;
-  const iconScale = useRef(new Animated.Value(1)).current;
   const contentFade = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
     checkPin();
-    animateIcon();
     Animated.timing(contentFade, {
       toValue: 1,
       duration: 800,
       useNativeDriver: true,
     }).start();
   }, [user]);
-
-  const animateIcon = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(iconScale, { toValue: 1.05, duration: 2500, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-        Animated.timing(iconScale, { toValue: 1, duration: 2500, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-      ])
-    ).start();
-  };
 
   const triggerShake = () => {
     Animated.sequence([
@@ -86,7 +75,7 @@ export default function LockScreen() {
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-      
+
       if (hasHardware && isEnrolled) {
         const result = await LocalAuthentication.authenticateAsync({
           promptMessage: 'Unlock ScheduleMe',
@@ -109,7 +98,7 @@ export default function LockScreen() {
     const newPin = pin + num;
     setPin(newPin);
     animateDot(newPin.length - 1, true);
-    
+
     if (newPin.length === 4) {
       setTimeout(async () => {
         if (setupMode) {
@@ -165,13 +154,13 @@ export default function LockScreen() {
     return (
       <Animated.View style={[styles.dotsContainer, { transform: [{ translateX: shakeAnim }] }]}>
         {dotAnims.map((anim, i) => (
-          <Animated.View 
-            key={i} 
+          <Animated.View
+            key={i}
             style={[
-              styles.dot, 
+              styles.dot,
               i < pin.length && styles.dotFilled,
               { transform: [{ scale: anim }] }
-            ]} 
+            ]}
           />
         ))}
       </Animated.View>
@@ -193,10 +182,10 @@ export default function LockScreen() {
             {row.map((keyStr) => {
               if (keyStr === 'biometric') {
                 return (
-                  <TouchableOpacity 
-                    key={keyStr} 
-                    style={styles.keyButtonTransparent} 
-                    onPress={triggerBiometric} 
+                  <TouchableOpacity
+                    key={keyStr}
+                    style={styles.keyButtonTransparent}
+                    onPress={triggerBiometric}
                     disabled={setupMode}
                   >
                     {!setupMode && <MaterialCommunityIcons name="fingerprint" size={32} color={colors.primary} />}
@@ -205,9 +194,9 @@ export default function LockScreen() {
               }
               if (keyStr === 'delete') {
                 return (
-                  <TouchableOpacity 
-                    key={keyStr} 
-                    style={styles.keyButtonTransparent} 
+                  <TouchableOpacity
+                    key={keyStr}
+                    style={styles.keyButtonTransparent}
                     onPress={handleBackspace}
                   >
                     <MaterialCommunityIcons name="backspace-outline" size={26} color={colors.textSecondary} />
@@ -215,10 +204,10 @@ export default function LockScreen() {
                 );
               }
               return (
-                <TouchableOpacity 
-                  key={keyStr} 
-                  style={styles.keyButton} 
-                  onPress={() => handleKeyPress(keyStr)} 
+                <TouchableOpacity
+                  key={keyStr}
+                  style={styles.keyButton}
+                  onPress={() => handleKeyPress(keyStr)}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.keyText}>{keyStr}</Text>
@@ -233,40 +222,39 @@ export default function LockScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Background Decorative Shapes - Moved to background and restricted to top */}
-      <View style={styles.artContainer} pointerEvents="none">
-        <View style={[styles.shape, styles.shapeBeige]} />
-        <View style={[styles.shape, styles.shapeYellow]} />
-      </View>
-      
       <SafeAreaView style={styles.safeArea}>
         <Animated.View style={[styles.content, { opacity: contentFade }]}>
-          {/* Header Section - Ample room, clear contrast */}
-          <View style={styles.header}>
-            <Animated.View style={{ transform: [{ scale: iconScale }] }}>
-              <View style={styles.iconCircle}>
-                <MaterialCommunityIcons name="shield-lock" size={36} color={colors.primary} />
-              </View>
-            </Animated.View>
-            
-            <Text style={styles.title}>
-               {setupMode 
-                 ? (setupStep === 1 ? 'Create PIN' : 'Confirm PIN') 
-                 : 'Welcome'}
-            </Text>
-            <Text style={styles.subtitle}>
-               {setupMode 
-                 ? 'Secure your classes with a 4-digit code.' 
-                 : 'Verify your ID to continue.'}
-            </Text>
+
+          {/* Unified Vertical Flow */}
+          <View style={styles.topSection}>
+            <View style={styles.avatarWrapper}>
+              <Image
+                source={require('../../assets/student_secure_login.png')}
+                style={styles.avatarImage}
+                resizeMode="contain"
+              />
+            </View>
+            <View style={styles.textWrapper}>
+              <Text style={styles.greeting}>
+                {setupMode 
+                  ? (setupStep === 1 ? 'Secure your hub' : 'One more time') 
+                  : 'Welcome back,'}
+              </Text>
+              <Text style={styles.name}>
+                {setupMode 
+                  ? (setupStep === 1 ? 'Create a PIN' : 'Confirm PIN') 
+                  : firstName}
+              </Text>
+              {setupMode && (
+                <Text style={styles.subtitle}>
+                  Protects your local vault data & app access.
+                </Text>
+              )}
+            </View>
           </View>
 
-          {/* Functional Section - Elevated card for maximum usability */}
-          <View style={styles.bottomCard}>
-            <View style={styles.cardHeader}>
-              <View style={styles.cardHandle} />
-            </View>
-            
+          {/* Interaction Section */}
+          <View style={styles.interactionSection}>
             <View style={styles.dotsWrapper}>
               {renderDots()}
             </View>
@@ -274,11 +262,15 @@ export default function LockScreen() {
             <View style={styles.keypadWrapper}>
               {renderKeypad()}
             </View>
+          </View>
 
+          {/* Bottom Section - Action */}
+          <View style={styles.footer}>
             <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-               <Text style={styles.logoutText}>Switch Account or <Text style={{ color: colors.error, fontWeight: '800' }}>Log out</Text></Text>
+              <Text style={styles.logoutText}>Not you? <Text style={styles.logoutAccent}>Switch Account</Text></Text>
             </TouchableOpacity>
           </View>
+
         </Animated.View>
       </SafeAreaView>
     </View>
@@ -288,100 +280,66 @@ export default function LockScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8F5FF',
   },
   safeArea: {
     flex: 1,
   },
   content: {
     flex: 1,
-    justifyContent: 'space-between',
+    paddingHorizontal: 20,
   },
-  artContainer: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-    zIndex: 0,
-  },
-  shape: {
-    position: 'absolute',
-  },
-  shapeBeige: {
-    backgroundColor: colors.secondary,
-    width: width * 1.2,
-    height: width * 1.2,
-    borderRadius: width * 0.6,
-    top: -width * 0.6,
-    left: -width * 0.2,
-    opacity: 0.8,
-  },
-  shapeYellow: {
-    backgroundColor: colors.primary,
-    width: width * 0.8,
-    height: width * 0.8,
-    borderRadius: width * 0.4,
-    top: -width * 0.2,
-    right: -width * 0.2,
-    opacity: 0.6,
-  },
-  header: {
+  topSection: {
     alignItems: 'center',
-    paddingTop: height * 0.04,
-    paddingHorizontal: spacing.xl,
-    zIndex: 1,
+    marginTop: height * 0.02,
+    marginBottom: 20,
   },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#FFFFFF',
+  avatarWrapper: {
+    width: width * 0.45,
+    height: width * 0.4,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
   },
-  title: {
-    color: '#000000',
-    fontSize: 32,
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  textWrapper: {
+    alignItems: 'center',
+    marginTop: 5,
+    width: '100%',
+  },
+  greeting: {
+    fontSize: 14,
+    color: '#8F8A9E',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  },
+  name: {
+    fontSize: 28,
+    color: '#1A1820',
     fontWeight: '900',
-    marginTop: spacing.l,
+    letterSpacing: -1,
+    marginTop: 4,
     textAlign: 'center',
-    letterSpacing: -0.5,
   },
   subtitle: {
-    color: 'rgba(0,0,0,0.5)',
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: spacing.s,
+    fontSize: 11,
+    color: '#8F8A9E',
     fontWeight: '500',
+    marginTop: 6,
+    textAlign: 'center',
+    paddingHorizontal: 50,
   },
-  bottomCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    paddingBottom: spacing.l,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 15,
-    elevation: 10,
-    zIndex: 2,
-  },
-  cardHeader: {
+  interactionSection: {
+    flex: 1,
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingVertical: spacing.m,
-  },
-  cardHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#EAEAEA',
-    borderRadius: 2,
+    paddingTop: 10,
   },
   dotsWrapper: {
-    paddingVertical: spacing.l,
-    alignItems: 'center',
+    marginBottom: 30,
   },
   dotsContainer: {
     flexDirection: 'row',
@@ -391,58 +349,63 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: 'rgba(62, 49, 90, 0.1)',
     marginHorizontal: 12,
   },
   dotFilled: {
-    backgroundColor: '#111111',
+    backgroundColor: '#3E315A',
   },
   keypadWrapper: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
+    width: '100%',
+    maxWidth: 320,
   },
   keypad: {
     width: '100%',
-    maxWidth: 320,
   },
   keypadRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: spacing.m,
+    marginBottom: 20,
   },
   keyButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 75,
+    height: 75,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowColor: '#3E315A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
   },
   keyButtonTransparent: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 75,
+    height: 75,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
   keyText: {
-    color: '#000000',
+    color: '#3E315A',
     fontSize: 26,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  footer: {
+    paddingVertical: 30,
+    alignItems: 'center',
   },
   logoutBtn: {
-    alignSelf: 'center',
-    marginTop: spacing.m,
-    padding: spacing.s,
+    padding: 10,
   },
   logoutText: {
-    color: 'rgba(0,0,0,0.4)',
+    color: '#8F8A9E',
     fontSize: 14,
     fontWeight: '500',
+  },
+  logoutAccent: {
+    color: '#3E315A',
+    fontWeight: '800',
   }
 });

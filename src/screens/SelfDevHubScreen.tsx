@@ -8,10 +8,11 @@ import { colors, spacing } from '../theme';
 import TodosScreen from './TodosScreen';
 import DreamsScreen from './DreamsScreen';
 import EmergencyNotesScreen from './EmergencyNotesScreen';
+import SpaceExplorerScreen from './SpaceExplorerScreen';
+import ProfileScreen from './ProfileScreen';
+import AttendanceScreen from './AttendanceScreen';
 import AddCourseScreen from './AddCourseScreen';
 import DailyKnowledgeScreen from './DailyKnowledgeScreen';
-import SpaceExplorerScreen from './SpaceExplorerScreen';
-import SatelliteTrackerScreen from './SatelliteTrackerScreen';
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -48,13 +49,14 @@ export default function SelfDevHubScreen() {
           swipeEnabled: false,
         }}
       >
-        <Tab.Screen name="Knowledge" component={DailyKnowledgeScreen} />
+        <Tab.Screen name="Attendance" component={AttendanceScreen} />
+        <Tab.Screen name="Add Class" component={AddCourseScreen} />
+        <Tab.Screen name="Notes" component={EmergencyNotesScreen} />
         <Tab.Screen name="To-Dos" component={TodosScreen} />
         <Tab.Screen name="Dreams" component={DreamsScreen} />
-        <Tab.Screen name="Notes" component={EmergencyNotesScreen} />
+        <Tab.Screen name="My profile" component={ProfileScreen} />
         <Tab.Screen name="Astro" component={SpaceExplorerScreen} />
-        <Tab.Screen name="Orbit" component={SatelliteTrackerScreen} />
-        <Tab.Screen name="Add Class" component={AddCourseScreen} />
+        <Tab.Screen name="Knowledge" component={DailyKnowledgeScreen} />
       </Tab.Navigator>
     </SafeAreaView>
   );

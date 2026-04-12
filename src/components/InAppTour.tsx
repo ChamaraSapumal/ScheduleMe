@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, Easing, Image } from 'react-native';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,45 +10,77 @@ const { width, height } = Dimensions.get('window');
 const TOUR_STEPS = [
   {
     target: 'Agenda',
-    title: 'YOUR SCHEDULE',
-    description: 'Welcome to your private agenda. Track all your daily classes here securely.',
-    position: { top: 180, alignSelf: 'center' },
+    title: 'WELCOME STUDENT!',
+    description: 'I am here to guide you. This is your personal hub where your university life becomes organized.',
+    position: { top: 150, alignSelf: 'center' },
     arrowDirection: 'none',
   },
   {
     target: 'Agenda',
-    title: 'ADD A CLASS',
-    description: 'Tap the + icon in the top right at any time to schedule a new lecture or lab.',
-    position: { top: 90, right: 30 },
-    arrowDirection: 'up',
+    title: 'YOUR SCHEDULE',
+    description: 'Track all your daily classes, labs, and lectures here. Keep your day structured!',
+    position: { top: height * 0.4, alignSelf: 'center' },
+    arrowDirection: 'none',
   },
   {
     target: 'Calendar',
-    title: 'MONTHLY OVERVIEW',
-    description: 'Switch to the calendar to see your entire month. Public holidays are automatically marked.',
-    position: { bottom: 100, left: width * 0.2 },
+    title: 'MONTHLY HUB',
+    description: 'Plan ahead with a full monthly view. We automatically mark public holidays for you.',
+    position: { bottom: 120, left: width * 0.1 },
     arrowDirection: 'down',
   },
   {
     target: 'Words',
-    title: 'PERSONAL DICTIONARY',
-    description: 'Discover a new engineering term? Save it in your local dictionary and review it daily.',
-    position: { bottom: 100, alignSelf: 'center' },
+    title: 'SMART DICTIONARY',
+    description: 'Found a complex term in a lecture? Save it here to build your academic vocabulary.',
+    position: { bottom: 120, alignSelf: 'center' },
+    arrowDirection: 'down',
+  },
+  {
+    target: 'Focus',
+    title: 'POMODORO POWER',
+    description: 'Boost your productivity with my 25-minute study timer. Focus hard, then take a short break!',
+    position: { bottom: 120, alignSelf: 'center' },
     arrowDirection: 'down',
   },
   {
     target: 'Tools',
-    title: 'DAILY GROWTH',
-    description: 'Access tools and daily knowledge, like AI news and space facts, to grow every day.',
-    position: { bottom: 100, right: width * 0.25 },
+    title: 'DEVELOPMENT HUB',
+    description: 'The heart of the app. This is where you access all your advanced student tools.',
+    position: { bottom: 120, right: width * 0.05 },
     arrowDirection: 'down',
   },
   {
-    target: 'Profile',
-    title: 'SECURE VAULT',
-    description: 'Manage your local vault, setup App Updates via GitHub, and verify your ID.',
-    position: { bottom: 100, right: 30 },
-    arrowDirection: 'down',
+    target: 'Tools',
+    subTarget: 'Attendance',
+    title: 'ELIGIBILITY TRACKER',
+    description: 'Never miss an exam! I will warn you if your attendance drops below 80%.',
+    position: { top: 150, alignSelf: 'center' },
+    arrowDirection: 'none',
+  },
+  {
+    target: 'Tools',
+    subTarget: 'Astro',
+    title: 'STELLAR EXPLORER',
+    description: 'Need a study break? Watch real-time satellite positions orbiting above you.',
+    position: { top: 150, alignSelf: 'center' },
+    arrowDirection: 'none',
+  },
+  {
+    target: 'Tools',
+    subTarget: 'Knowledge',
+    title: 'DAILY WIKI',
+    description: 'Discover something new every day with curated interesting articles and facts.',
+    position: { top: 150, alignSelf: 'center' },
+    arrowDirection: 'none',
+  },
+  {
+    target: 'Tools',
+    subTarget: 'My profile',
+    title: 'SECURE PROFILE',
+    description: 'Set your name, update your photo, and manage your security vault settings here.',
+    position: { top: height * 0.25, alignSelf: 'center' },
+    arrowDirection: 'none',
   }
 ];
 
@@ -63,12 +95,17 @@ export default function InAppTour() {
 
   useEffect(() => {
     if (hasSeenOnboarding === false && TOUR_STEPS[currentStep]) {
-      // Small timeout fixes React Navigation crash on mount
       setTimeout(() => {
-        // Handle deeply nested navigation
-        navigation.navigate('MainTabs', { screen: TOUR_STEPS[currentStep].target });
+        const step = TOUR_STEPS[currentStep];
+        if (step.subTarget) {
+          navigation.navigate('MainTabs', { 
+            screen: step.target, 
+            params: { screen: step.subTarget } 
+          });
+        } else {
+          navigation.navigate('MainTabs', { screen: step.target });
+        }
         
-        // Reset animations
         fadeAnim.setValue(0);
         scaleAnim.setValue(0.9);
         
@@ -140,8 +177,15 @@ export default function InAppTour() {
           )}
 
           <View style={styles.card}>
+             <View style={styles.charContainer}>
+                <Image 
+                  source={require('../../assets/in_app_tour.png')} 
+                  style={styles.charImage} 
+                  resizeMode="contain"
+                />
+             </View>
+
              <View style={styles.cardHeader}>
-               <MaterialCommunityIcons name="star-four-points" size={20} color={colors.primary} style={{ marginRight: 8 }} />
                <Text style={styles.title}>{step.title}</Text>
              </View>
              
@@ -152,10 +196,10 @@ export default function InAppTour() {
                 
                 <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
                    <Text style={styles.nextText}>
-                      {currentStep === TOUR_STEPS.length - 1 ? "GOT IT!" : "NEXT"}
+                      {currentStep === TOUR_STEPS.length - 1 ? "FINISH" : "NEXT"}
                    </Text>
                    {currentStep !== TOUR_STEPS.length - 1 && (
-                     <MaterialCommunityIcons name="arrow-right" size={18} color="#000" />
+                     <MaterialCommunityIcons name="arrow-right" size={18} color="#FFF" />
                    )}
                 </TouchableOpacity>
              </View>
@@ -181,63 +225,75 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    backgroundColor: '#FFFFFF', // Clean White
+    backgroundColor: '#FFFFFF',
     padding: spacing.l,
-    borderRadius: 24, // Soft elegant curve
-    borderWidth: 1, // Elegant styling
-    borderColor: 'rgba(0,0,0,0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(62, 49, 90, 0.1)',
+    shadowColor: '#3E315A',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.2,
+    shadowRadius: 25,
+    elevation: 10,
+  },
+  charContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+    marginTop: -height * 0.15, // Floating he's telling style
+  },
+  charImage: {
+    width: 200,
+    height: 200,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: spacing.s,
   },
   title: {
-    color: '#000',
-    fontWeight: '800',
-    fontSize: 16,
+    color: '#3E315A',
+    fontWeight: '900',
+    fontSize: 18,
     letterSpacing: 0.5,
+    textAlign: 'center',
   },
   description: {
-    color: '#4A4A4A', // Softer black/gray text
-    fontWeight: '500',
-    fontSize: 14,
+    color: '#6F6B7D',
+    fontWeight: '600',
+    fontSize: 15,
     lineHeight: 22,
+    textAlign: 'center',
     marginBottom: spacing.l,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: spacing.s,
+    paddingTop: spacing.m,
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
   },
   stepCounter: {
-    color: '#A3947D', // Beige Secondary Color
+    color: '#8F8A9E',
     fontWeight: 'bold',
-    fontSize: 13,
+    fontSize: 14,
   },
   nextButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#D9BC67', // Mustard Primary Color
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    shadowColor: '#D9BC67',
+    backgroundColor: '#3E315A',
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 20,
+    shadowColor: '#3E315A',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowRadius: 8,
     elevation: 4,
   },
   nextText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 14,
     marginRight: 4,

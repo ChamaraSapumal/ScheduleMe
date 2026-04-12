@@ -1,12 +1,17 @@
 export const colors = {
-  background: '#FFFFFF', // Clean white base
-  cardBackground: '#F4F4F4', // Slightly off-white for cards
-  primary: '#F4D267', // Muted Mustard Yellow
-  secondary: '#AF9F85', // Taupe/Beige
-  textPrimary: '#000000', // Black text
-  textSecondary: '#8B8B8B', // Gray text
-  textDark: '#000000', // Dark text for bright backgrounds
+  // Premium Purple Theme
+  primary: '#3E315A', // Deep Premium Purple
+  secondary: '#6D5A96', // Lavender Grey
+  accent: '#D2B9FF', // Bright Lavender
+  background: '#F8F5FF', // Soft Lavender Background
+  cardBackground: '#FFFFFF', // Pure White for Elevation
+  
+  textPrimary: '#1A1820', // Dark Charcoal
+  textSecondary: '#8F8A9E', // Muted Purple Text
+  textDark: '#000000',
   error: '#FF5A5F',
+  success: '#10B981',
+  white: '#FFFFFF',
   greyBackground: '#EAEAEA',
 };
 
@@ -20,8 +25,7 @@ export const spacing = {
 };
 
 export const fonts = {
-  // Can expand with custom fonts later
-  bold: 'System', // Replace with custom font if needed
+  bold: 'System',
   medium: 'System',
   regular: 'System',
 };

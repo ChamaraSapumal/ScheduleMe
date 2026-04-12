@@ -11,12 +11,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
+import { useNavigation } from '@react-navigation/native';
 import { colors, spacing } from '../theme';
 
-const { height: screenHeight } = Dimensions.get('window');
+const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
+
+// Premium Purple Palette
+const profileTheme = {
+  primary: '#3E315A',
+  secondary: '#EFE7FE',
+  background: '#F8F5FF',
+  white: '#FFFFFF',
+  accent: '#D2B9FF',
+  textHeader: '#1A1820',
+  textSecondary: '#8F8A9E',
+  danger: '#FF6B6B'
+};
 
 export default function ProfileScreen() {
-  const { user, setUnlocked } = useContext(AuthContext);
+  const navigation = useNavigation<any>();
+  const { user, setUnlocked, setUserName } = useContext(AuthContext);
   const { updateAvailable, latestVersion, isDownloading, downloadProgress, handleDownloadAndInstall, cancelDownload } = useAppUpdate();
 
   const currentVersion = Constants.expoConfig?.version || '1.0.0';
@@ -28,8 +42,6 @@ export default function ProfileScreen() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
 
-  // 0 is the default resting area (down).
-  // -screenHeight * 0.45 pushes it up securely.
   const SNAP_BOTTOM = 0; 
   const SNAP_TOP = -screenHeight * 0.45; 
   
@@ -88,7 +100,10 @@ export default function ProfileScreen() {
       const snap = await get(profileRef);
       if (snap.exists()) {
         const data = snap.val();
-        if (data.name) setName(data.name);
+        if (data.name) {
+          setName(data.name);
+          setUserName(data.name);
+        }
         if (data.phone) setPhone(data.phone);
       }
     } catch (error) {
@@ -99,14 +114,14 @@ export default function ProfileScreen() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to update your avatar.');
+      Alert.alert('Permission Denied', 'Camera roll permissions needed.');
       return;
     }
 
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [7, 8],
+      aspect: [1, 1],
       quality: 0.8,
     });
 
@@ -116,17 +131,14 @@ export default function ProfileScreen() {
         const uniqueFileName = `avatar_${Date.now()}.jpg`;
         const destUri = `${FileSystem.documentDirectory}${uniqueFileName}`;
         
-        await FileSystem.copyAsync({
-          from: sourceUri,
-          to: destUri
-        });
+        await FileSystem.copyAsync({ from: sourceUri, to: destUri });
 
         if (user) {
           await AsyncStorage.setItem(`profileImage_${user.uid}`, destUri);
         }
         setPhotoUri(destUri);
       } catch (error: any) {
-        Alert.alert('Error', error.message || 'Could not save the image locally.');
+        Alert.alert('Error', 'Could not save the image locally.');
       }
     }
   };
@@ -135,12 +147,14 @@ export default function ProfileScreen() {
     if (!user) return;
     try {
       const profileRef = ref(db, `users/${user.uid}/profile`);
-      await set(profileRef, {
-        name: editName,
-        phone: editPhone
-      });
+      await set(profileRef, { name: editName, phone: editPhone });
       setName(editName);
+      setUserName(editName);
       setPhone(editPhone);
+      
+      // Update persistent cache
+      await AsyncStorage.setItem(`cached_name_${user.uid}`, editName);
+      
       setIsEditing(false);
     } catch (er) {
       Alert.alert('Error', 'Could not save profile details.');
@@ -157,156 +171,182 @@ export default function ProfileScreen() {
   };
 
   const displayName = name || 'User';
-  const displayPhone = phone || 'Add a phone number';
+  const displayPhone = phone || 'Add phone number';
   const defaultImage = 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+      {/* Top Hero Section */}
       <View style={styles.topSection}>
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>My profile</Text>
-            <View style={styles.headerRight}>
-              <TouchableOpacity onPress={() => { /* Generate QR */ }}>
-                <MaterialCommunityIcons name="qrcode" size={26} color="#000" style={{ marginRight: 15 }} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setEditName(name); setEditPhone(phone); setIsEditing(true); }}>
-                <MaterialCommunityIcons name={isEditing ? "close" : "square-edit-outline"} size={26} color="#000" />
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.headerTitle}>Account Settings</Text>
+            <TouchableOpacity 
+              style={styles.headerBtn}
+              onPress={() => { setEditName(name); setEditPhone(phone); setIsEditing(!isEditing); }}
+            >
+              <MaterialCommunityIcons name={isEditing ? "close" : "cog-outline"} size={24} color="#FFF" />
+            </TouchableOpacity>
           </View>
         </SafeAreaView>
 
         {!isEditing ? (
-          <>
-            <View style={styles.avatarWrapper}>
-              <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} activeOpacity={0.8}>
-                <View style={styles.avatarShadow} />
-                <View style={styles.avatarFrame}>
-                  <Image 
-                    source={{ uri: photoUri || defaultImage }} 
-                    style={styles.avatarImage} 
-                  />
-                  <View style={styles.editBadge}>
-                      <MaterialCommunityIcons name="camera" size={16} color="#FFF" />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.heroContent}>
+            <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} activeOpacity={0.9}>
+              <View style={styles.avatarGlow} />
+              <View style={styles.avatarOuterRing}>
+                <Image source={{ uri: photoUri || defaultImage }} style={styles.avatarImage} />
+              </View>
+              <View style={styles.cameraIconBadge}>
+                <MaterialCommunityIcons name="camera-outline" size={16} color={profileTheme.primary} />
+              </View>
+            </TouchableOpacity>
+            
             <View style={styles.nameContainer}>
               <Text style={styles.nameText}>{displayName}</Text>
-              <View style={styles.idRow}>
-                <Text style={styles.idText}>H97DPSZB</Text>
-                <TouchableOpacity style={{ marginLeft: 6 }}>
-                  <MaterialCommunityIcons name="share-variant" size={14} color="#000" />
-                </TouchableOpacity>
+              <View style={styles.statusBadge}>
+                  <Text style={styles.statusText}>Premium Student Hub</Text>
+                  <MaterialCommunityIcons name="check-decagram" size={14} color={profileTheme.accent} />
               </View>
             </View>
-          </>
+          </View>
         ) : (
-          <View style={styles.editContainer}>
-            <Text style={styles.editLabel}>Name</Text>
-            <TextInput 
-               style={styles.input} 
-               value={editName} 
-               onChangeText={setEditName} 
-               placeholder="Your name"
-               placeholderTextColor="#666"
-            />
-            <Text style={styles.editLabel}>Phone</Text>
-            <TextInput 
-               style={styles.input} 
-               value={editPhone} 
-               onChangeText={setEditPhone} 
-               placeholder="+1 234 567 8900"
-               keyboardType="phone-pad"
-               placeholderTextColor="#666"
-            />
+          <View style={styles.editHero}>
+            <Text style={styles.editTitle}>Update Profile</Text>
+            <View style={styles.inputWrapper}>
+               <MaterialCommunityIcons name="account-outline" size={20} color="#FFF" style={styles.inputIcon} />
+               <TextInput 
+                  style={styles.input} 
+                  value={editName} 
+                  onChangeText={setEditName} 
+                  placeholder="Full Name"
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+               />
+            </View>
+            <View style={styles.inputWrapper}>
+               <MaterialCommunityIcons name="phone-outline" size={20} color="#FFF" style={styles.inputIcon} />
+               <TextInput 
+                  style={styles.input} 
+                  value={editPhone} 
+                  onChangeText={setEditPhone} 
+                  placeholder="Phone Number"
+                  keyboardType="phone-pad"
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+               />
+            </View>
             <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit}>
-               <Text style={styles.saveBtnText}>Save Details</Text>
+               <Text style={styles.saveBtnText}>Save Changes</Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
 
+      {/* Modern Draggable Bottom Sheet */}
       <Animated.View style={[
         styles.bottomSheet, 
         { transform: [{ translateY: panY }] }
       ]}>
         <View style={styles.dragArea} {...panResponder.panHandlers}>
-          <MaterialCommunityIcons name="chevron-up" size={30} color="#000" style={{ marginBottom: -10 }} />
+          <View style={styles.dragIndicator} />
         </View>
         
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.listItem}>
-            <View style={styles.listIconContainer}>
-              <MaterialCommunityIcons name="access-point" size={22} color="#000" />
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Info Section */}
+          <Text style={styles.sectionTitle}>Information</Text>
+          
+          <View style={styles.card}>
+            <View style={styles.cardItem}>
+              <View style={[styles.iconContainer, { backgroundColor: '#F0E8FF' }]}>
+                <MaterialCommunityIcons name="phone-outline" size={22} color={profileTheme.primary} />
+              </View>
+              <View style={styles.itemText}>
+                <Text style={styles.itemLabel}>Primary Phone</Text>
+                <Text style={styles.itemValue}>{displayPhone}</Text>
+              </View>
             </View>
-            <View>
-              <Text style={styles.listTitle}>Phone number</Text>
-              <Text style={styles.listSubtitle}>{displayPhone}</Text>
+
+            <View style={styles.divider} />
+
+            <View style={styles.cardItem}>
+              <View style={[styles.iconContainer, { backgroundColor: '#F0E8FF' }]}>
+                <MaterialCommunityIcons name="email-outline" size={22} color={profileTheme.primary} />
+              </View>
+              <View style={styles.itemText}>
+                <Text style={styles.itemLabel}>Email Address</Text>
+                <Text style={styles.itemValue}>{user?.email || 'N/A'}</Text>
+              </View>
             </View>
           </View>
 
-          <View style={styles.listItem}>
-            <View style={[styles.listIconContainer, { backgroundColor: '#AF9F85' }]}>
-              <MaterialCommunityIcons name="email-outline" size={22} color="#FFF" />
-            </View>
-            <View>
-              <Text style={styles.listTitle}>Email address</Text>
-              <Text style={styles.listSubtitle}>{user?.email || 'user@example.com'}</Text>
-            </View>
+          {/* Peer Sharing */}
+          <Text style={styles.sectionTitle}>Peer Sharing</Text>
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.cardItem} onPress={() => navigation.navigate('ShareTimetable')}>
+              <View style={[styles.iconContainer, { backgroundColor: '#E8F5FF' }]}>
+                <MaterialCommunityIcons name="qrcode-plus" size={22} color="#0EA5E9" />
+              </View>
+              <View style={styles.itemText}>
+                <Text style={styles.itemLabel}>Share Schedule</Text>
+                <Text style={styles.itemValue}>Generate Timetable QR</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={profileTheme.textSecondary} />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            <TouchableOpacity style={styles.cardItem} onPress={() => navigation.navigate('ScanTimetable')}>
+              <View style={[styles.iconContainer, { backgroundColor: '#E8F5FF' }]}>
+                <MaterialCommunityIcons name="qrcode-scan" size={22} color="#0EA5E9" />
+              </View>
+              <View style={styles.itemText}>
+                <Text style={styles.itemLabel}>Scan Timetable</Text>
+                <Text style={styles.itemValue}>Sync a friend's agenda</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={profileTheme.textSecondary} />
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.listItem}>
-            <View style={[styles.listIconContainer, { backgroundColor: '#000' }]}>
-              <MaterialCommunityIcons name="fingerprint" size={22} color={colors.primary} />
-            </View>
-            <View>
-              <Text style={styles.listTitle}>Key fingerprint</Text>
-              <Text style={styles.listSubtitle}>3A7S350FFFSKRDLNLY4#60</Text>
-            </View>
-          </View>
+          {/* Security & System */}
+          <Text style={styles.sectionTitle}>Security & Updates</Text>
 
-          <View style={styles.listItem}>
-            <View style={[styles.listIconContainer, { backgroundColor: '#FFD500' }]}>
-              <MaterialCommunityIcons name="cloud-download-outline" size={22} color="#000" />
+          <View style={styles.card}>
+            <View style={styles.cardItem}>
+              <View style={[styles.iconContainer, { backgroundColor: '#000' }]}>
+                <MaterialCommunityIcons name="fingerprint" size={22} color={profileTheme.accent} />
+              </View>
+              <View style={styles.itemText}>
+                <Text style={styles.itemLabel}>Security Vault</Text>
+                <Text style={styles.itemValue}>Biometrics & PIN Enabled</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={profileTheme.textSecondary} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.listTitle}>App Status</Text>
-              {updateAvailable ? (
-                <View style={{ marginTop: 2 }}>
-                  <Text style={[styles.listSubtitle, { color: '#EF4444', fontWeight: 'bold' }]}>
-                    Update Available: v{latestVersion}
-                  </Text>
-                  {isDownloading ? (
-                    <View style={styles.downloadRow}>
-                      <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#000' }}>
-                        Downloading... {Math.round(downloadProgress * 100)}%
-                      </Text>
-                      <TouchableOpacity style={styles.cancelTinyBtn} onPress={cancelDownload}>
-                        <MaterialCommunityIcons name="close" size={14} color="#EF4444" />
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <TouchableOpacity style={styles.updateInlineBtn} onPress={handleDownloadAndInstall}>
-                      <Text style={styles.updateInlineBtnText}>Download & Install</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                  <Text style={styles.listSubtitle}>Version {currentVersion} (Up to date)</Text>
-                  <MaterialCommunityIcons name="check-decagram" size={16} color="#10B981" style={{ marginLeft: 4 }} />
-                </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.cardItem}>
+              <View style={[styles.iconContainer, { backgroundColor: '#FFF0F0' }]}>
+                <MaterialCommunityIcons name="cloud-check-outline" size={22} color="#FF6B6B" />
+              </View>
+              <View style={styles.itemText}>
+                <Text style={styles.itemLabel}>App Version</Text>
+                <Text style={styles.itemValue}>V{currentVersion} (Up to date)</Text>
+              </View>
+              {updateAvailable && (
+                <TouchableOpacity style={styles.updateBadge} onPress={handleDownloadAndInstall}>
+                  <Text style={styles.updateBadgeText}>UPDATE</Text>
+                </TouchableOpacity>
               )}
             </View>
           </View>
 
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogOut}>
-            <MaterialCommunityIcons name="logout" size={20} color="#FFF" />
-            <Text style={styles.logoutText}>Log Out</Text>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogOut}>
+            <MaterialCommunityIcons name="logout-variant" size={22} color={profileTheme.white} />
+            <Text style={styles.logoutBtnText}>Sign Out Securely</Text>
           </TouchableOpacity>
+          
+          <View style={styles.footerBranding}>
+             <Text style={styles.brandingText}>ScheduleMe Premium v{currentVersion}</Text>
+          </View>
         </ScrollView>
       </Animated.View>
     </KeyboardAvoidingView>
@@ -316,231 +356,267 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9F9F9', 
+    backgroundColor: profileTheme.background,
   },
   topSection: {
-    backgroundColor: '#AF9F85', // Updated secondary color
-    height: '67%',
+    backgroundColor: profileTheme.primary,
+    height: '60%',
     width: '100%',
+    borderBottomLeftRadius: 50,
+    borderBottomRightRadius: 50,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.l,
-    paddingTop: spacing.m,
+    paddingHorizontal: 25,
+    paddingTop: 20,
   },
   headerTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#000',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFF',
     letterSpacing: -0.5,
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarWrapper: {
-    alignItems: 'center',
-    marginTop: spacing.xl,
-  },
-  avatarContainer: {
-    width: 170,
-    height: 170,
+  headerBtn: {
+    width: 45,
+    height: 45,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarShadow: {
-    position: 'absolute',
-    width: 170,
-    height: 170,
-    backgroundColor: '#000',
-    borderRadius: 30,
-    top: 10,
-    right: -10,
+  heroContent: {
+    alignItems: 'center',
+    marginTop: 30,
   },
-  avatarFrame: {
-    width: 170,
-    height: 170,
-    backgroundColor: '#FFD500', // Yellow background from reference
-    borderRadius: 30,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#000',
+  avatarContainer: {
+    width: 140,
+    height: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarGlow: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(210, 185, 255, 0.15)',
+  },
+  avatarOuterRing: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 4,
+    borderColor: 'rgba(255,255,255,0.2)',
+    padding: 3,
   },
   avatarImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    borderRadius: 60,
   },
-  editBadge: {
+  cameraIconBadge: {
     position: 'absolute',
-    bottom: 12,
-    right: 12,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    padding: 6,
-    borderRadius: 12,
+    bottom: 0,
+    right: 10,
+    backgroundColor: '#FFF',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
   },
   nameContainer: {
     alignItems: 'center',
-    marginTop: 25,
+    marginTop: 20,
   },
   nameText: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '900',
-    color: '#000',
-    marginBottom: 4,
+    color: '#FFF',
+    letterSpacing: -1,
   },
-  idRow: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 8,
   },
-  idText: {
-    fontSize: 14,
-    color: '#000',
+  statusText: {
+    fontSize: 12,
     fontWeight: '700',
-    opacity: 0.6,
-  },
-  editContainer: {
-    paddingHorizontal: spacing.xl,
-    marginTop: spacing.m,
-  },
-  editLabel: {
-    fontWeight: '900',
-    color: '#000',
-    marginBottom: 6,
-    fontSize: 14,
+    color: profileTheme.accent,
+    marginRight: 4,
     textTransform: 'uppercase',
   },
-  input: {
-    backgroundColor: '#FFF',
-    borderWidth: 3,
-    borderColor: '#000',
-    padding: spacing.m,
-    borderRadius: 12,
-    marginBottom: spacing.m,
-    color: '#000',
-    fontWeight: 'bold',
-  },
-  saveBtn: {
-    backgroundColor: '#000',
-    padding: spacing.m,
-    borderRadius: 12,
-    alignItems: 'center',
+  editHero: {
+    paddingHorizontal: 30,
     marginTop: 10,
   },
-  saveBtnText: {
-    color: '#FFF',
+  editTitle: {
+    fontSize: 24,
     fontWeight: '900',
+    color: '#FFF',
+    marginBottom: 20,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 15,
+    paddingHorizontal: 15,
+    marginBottom: 15,
+    height: 55,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveBtn: {
+    backgroundColor: profileTheme.accent,
+    height: 55,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 5,
+    shadowColor: profileTheme.accent,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  saveBtnText: {
+    color: profileTheme.primary,
     fontSize: 18,
-    textTransform: 'uppercase',
+    fontWeight: '900',
   },
   bottomSheet: {
-    backgroundColor: '#FFFFFF', 
+    backgroundColor: profileTheme.white, 
     position: 'absolute',
-    borderTopLeftRadius: 50,
-    borderTopRightRadius: 50,
-    paddingHorizontal: spacing.l,
-    borderTopWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    paddingHorizontal: 25,
     height: screenHeight * 0.9,
-    top: screenHeight * 0.53, 
+    top: screenHeight * 0.48, 
     width: '100%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 15,
+    shadowOffset: { width: 0, height: -15 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
   },
   dragArea: {
     width: '100%',
-    height: 40,
+    height: 35,
     justifyContent: 'center',
     alignItems: 'center',
   },
   dragIndicator: {
-    width: 50,
-    height: 6,
-    backgroundColor: '#000',
+    width: 40,
+    height: 5,
+    backgroundColor: '#E0E0E0',
     borderRadius: 3,
   },
   scrollContent: {
-    paddingTop: spacing.m,
+    paddingTop: 10,
     paddingBottom: screenHeight * 0.45, 
   },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  listIconContainer: {
-    width: 55,
-    height: 55,
-    borderRadius: 27.5,
-    backgroundColor: '#D9BC67',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.l,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.1)',
-  },
-  listTitle: {
-    fontSize: 18,
+  sectionTitle: {
+    fontSize: 14,
     fontWeight: '800',
-    color: '#000',
+    color: profileTheme.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 15,
+    marginTop: 20,
+    marginLeft: 5,
   },
-  listSubtitle: {
-    fontSize: 15,
-    color: '#777',
-    fontWeight: '600',
-    marginTop: 2,
+  card: {
+    backgroundColor: profileTheme.secondary,
+    borderRadius: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 5,
   },
-  logoutButton: {
+  cardItem: {
     flexDirection: 'row',
-    backgroundColor: '#000',
-    paddingVertical: 18,
-    borderRadius: 15,
+    alignItems: 'center',
+    padding: 15,
+  },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: spacing.m,
+    marginRight: 15,
   },
-  logoutText: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: '900',
-    marginLeft: spacing.m,
+  itemText: {
+    flex: 1,
+  },
+  itemLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: profileTheme.textSecondary,
     textTransform: 'uppercase',
+    marginBottom: 2,
   },
-  updateInlineBtn: {
-    backgroundColor: '#000',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#000',
-    marginTop: 12,
-    alignSelf: 'flex-start',
-    shadowColor: '#000',
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 0,
+  itemValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: profileTheme.textHeader,
   },
-  updateInlineBtnText: {
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    marginHorizontal: 15,
+  },
+  updateBadge: {
+    backgroundColor: profileTheme.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  updateBadgeText: {
     color: '#FFF',
+    fontSize: 10,
     fontWeight: '900',
-    fontSize: 15,
-    textTransform: 'uppercase',
   },
-  downloadRow: {
+  logoutBtn: {
     flexDirection: 'row',
+    backgroundColor: profileTheme.primary,
+    height: 60,
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
-    gap: 12,
+    marginTop: 30,
+    shadowColor: profileTheme.primary,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
   },
-  cancelTinyBtn: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 10,
-    padding: 4,
-    borderWidth: 1.5,
-    borderColor: '#EF4444',
+  logoutBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '900',
+    marginLeft: 10,
+  },
+  footerBranding: {
+    marginTop: 40,
+    alignItems: 'center',
+  },
+  brandingText: {
+    fontSize: 12,
+    color: profileTheme.textSecondary,
+    fontWeight: '600',
+    opacity: 0.5,
   }
 });
