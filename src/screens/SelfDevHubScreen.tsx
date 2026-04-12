@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../theme';
@@ -9,6 +10,8 @@ import DreamsScreen from './DreamsScreen';
 import EmergencyNotesScreen from './EmergencyNotesScreen';
 import AddCourseScreen from './AddCourseScreen';
 import DailyKnowledgeScreen from './DailyKnowledgeScreen';
+import SpaceExplorerScreen from './SpaceExplorerScreen';
+import SatelliteTrackerScreen from './SatelliteTrackerScreen';
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -16,7 +19,8 @@ export default function SelfDevHubScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Self Development</Text>
+        <Text style={styles.headerTitle}>Development</Text>
+        <MaterialCommunityIcons name="hexagon-multiple" size={28} color="#000" />
       </View>
       <Tab.Navigator
         screenOptions={{
@@ -41,12 +45,15 @@ export default function SelfDevHubScreen() {
           },
           tabBarScrollEnabled: true,
           tabBarItemStyle: { width: 'auto', paddingHorizontal: spacing.m },
+          swipeEnabled: false,
         }}
       >
         <Tab.Screen name="Knowledge" component={DailyKnowledgeScreen} />
         <Tab.Screen name="To-Dos" component={TodosScreen} />
         <Tab.Screen name="Dreams" component={DreamsScreen} />
         <Tab.Screen name="Notes" component={EmergencyNotesScreen} />
+        <Tab.Screen name="Astro" component={SpaceExplorerScreen} />
+        <Tab.Screen name="Orbit" component={SatelliteTrackerScreen} />
         <Tab.Screen name="Add Class" component={AddCourseScreen} />
       </Tab.Navigator>
     </SafeAreaView>
@@ -55,6 +62,18 @@ export default function SelfDevHubScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  header: { alignItems: 'center', marginBottom: spacing.m, paddingTop: spacing.s },
-  headerTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: 'bold' }
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.l,
+    paddingHorizontal: spacing.m,
+    paddingTop: spacing.s,
+  },
+  headerTitle: {
+    color: colors.textPrimary,
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
 });

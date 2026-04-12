@@ -10,13 +10,16 @@ import { ref, get, set } from 'firebase/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import Constants from 'expo-constants';
 import { colors, spacing } from '../theme';
 
 const { height: screenHeight } = Dimensions.get('window');
 
 export default function ProfileScreen() {
   const { user, setUnlocked } = useContext(AuthContext);
-  const { updateAvailable, latestVersion, isDownloading, downloadProgress, handleDownloadAndInstall } = useAppUpdate();
+  const { updateAvailable, latestVersion, isDownloading, downloadProgress, handleDownloadAndInstall, cancelDownload } = useAppUpdate();
+
+  const currentVersion = Constants.expoConfig?.version || '1.0.0';
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -26,9 +29,9 @@ export default function ProfileScreen() {
   const [editPhone, setEditPhone] = useState('');
 
   // 0 is the default resting area (down).
-  // -screenHeight * 0.40 pushes it up securely.
+  // -screenHeight * 0.45 pushes it up securely.
   const SNAP_BOTTOM = 0; 
-  const SNAP_TOP = -screenHeight * 0.40; 
+  const SNAP_TOP = -screenHeight * 0.45; 
   
   const panY = useRef(new Animated.Value(SNAP_BOTTOM)).current;
   const panYVal = useRef(SNAP_BOTTOM);
@@ -45,13 +48,11 @@ export default function ProfileScreen() {
       onPanResponderRelease: (_, gestureState) => {
         panY.flattenOffset();
         
-        // Decide where to snap based on velocity and swipe distance
         if (gestureState.dy < -50 || gestureState.vy < -0.5) {
           panYVal.current = SNAP_TOP;
         } else if (gestureState.dy > 50 || gestureState.vy > 0.5) {
           panYVal.current = SNAP_BOTTOM; 
         } else {
-          // Snap to whichever is closer if dropped lazily
           // @ts-ignore
           const currentVal = panY._value;
           const distToTop = Math.abs(currentVal - SNAP_TOP);
@@ -165,28 +166,42 @@ export default function ProfileScreen() {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>My profile</Text>
-            <TouchableOpacity onPress={() => { setEditName(name); setEditPhone(phone); setIsEditing(true); }}>
-              <MaterialCommunityIcons name={isEditing ? "close" : "pencil-outline"} size={28} color="#000" />
-            </TouchableOpacity>
+            <View style={styles.headerRight}>
+              <TouchableOpacity onPress={() => { /* Generate QR */ }}>
+                <MaterialCommunityIcons name="qrcode" size={26} color="#000" style={{ marginRight: 15 }} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setEditName(name); setEditPhone(phone); setIsEditing(true); }}>
+                <MaterialCommunityIcons name={isEditing ? "close" : "square-edit-outline"} size={26} color="#000" />
+              </TouchableOpacity>
+            </View>
           </View>
         </SafeAreaView>
 
         {!isEditing ? (
           <>
-            <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} activeOpacity={0.8}>
-              <View style={styles.avatarShadow} />
-              <View style={styles.avatarFrame}>
-                <Image 
-                  source={{ uri: photoUri || defaultImage }} 
-                  style={styles.avatarImage} 
-                />
-                <View style={styles.editBadge}>
-                    <MaterialCommunityIcons name="camera" size={16} color="#FFF" />
+            <View style={styles.avatarWrapper}>
+              <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} activeOpacity={0.8}>
+                <View style={styles.avatarShadow} />
+                <View style={styles.avatarFrame}>
+                  <Image 
+                    source={{ uri: photoUri || defaultImage }} 
+                    style={styles.avatarImage} 
+                  />
+                  <View style={styles.editBadge}>
+                      <MaterialCommunityIcons name="camera" size={16} color="#FFF" />
+                  </View>
                 </View>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.nameContainer}>
+              <Text style={styles.nameText}>{displayName}</Text>
+              <View style={styles.idRow}>
+                <Text style={styles.idText}>H97DPSZB</Text>
+                <TouchableOpacity style={{ marginLeft: 6 }}>
+                  <MaterialCommunityIcons name="share-variant" size={14} color="#000" />
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-            <Text style={styles.nameText}>{displayName}</Text>
-            <Text style={styles.idText}>SECURE ID <MaterialCommunityIcons name="qrcode" size={12} /></Text>
+            </View>
           </>
         ) : (
           <View style={styles.editContainer}>
@@ -219,13 +234,13 @@ export default function ProfileScreen() {
         { transform: [{ translateY: panY }] }
       ]}>
         <View style={styles.dragArea} {...panResponder.panHandlers}>
-          <View style={styles.dragIndicator} />
+          <MaterialCommunityIcons name="chevron-up" size={30} color="#000" style={{ marginBottom: -10 }} />
         </View>
         
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.listItem}>
             <View style={styles.listIconContainer}>
-              <MaterialCommunityIcons name="cellphone" size={20} color="#000" />
+              <MaterialCommunityIcons name="access-point" size={22} color="#000" />
             </View>
             <View>
               <Text style={styles.listTitle}>Phone number</Text>
@@ -234,8 +249,8 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.listItem}>
-            <View style={styles.listIconContainer}>
-              <MaterialCommunityIcons name="email-outline" size={20} color="#000" />
+            <View style={[styles.listIconContainer, { backgroundColor: '#AF9F85' }]}>
+              <MaterialCommunityIcons name="email-outline" size={22} color="#FFF" />
             </View>
             <View>
               <Text style={styles.listTitle}>Email address</Text>
@@ -245,7 +260,7 @@ export default function ProfileScreen() {
 
           <View style={styles.listItem}>
             <View style={[styles.listIconContainer, { backgroundColor: '#000' }]}>
-              <MaterialCommunityIcons name="fingerprint" size={20} color={colors.primary} />
+              <MaterialCommunityIcons name="fingerprint" size={22} color={colors.primary} />
             </View>
             <View>
               <Text style={styles.listTitle}>Key fingerprint</Text>
@@ -254,8 +269,8 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.listItem}>
-            <View style={[styles.listIconContainer, { backgroundColor: '#FFDE59' }]}>
-              <MaterialCommunityIcons name="cloud-download-outline" size={20} color="#000" />
+            <View style={[styles.listIconContainer, { backgroundColor: '#FFD500' }]}>
+              <MaterialCommunityIcons name="cloud-download-outline" size={22} color="#000" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.listTitle}>App Status</Text>
@@ -265,9 +280,14 @@ export default function ProfileScreen() {
                     Update Available: v{latestVersion}
                   </Text>
                   {isDownloading ? (
-                    <Text style={{ marginTop: 6, fontSize: 13, fontWeight: 'bold' }}>
-                      Downloading... {Math.round(downloadProgress * 100)}%
-                    </Text>
+                    <View style={styles.downloadRow}>
+                      <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#000' }}>
+                        Downloading... {Math.round(downloadProgress * 100)}%
+                      </Text>
+                      <TouchableOpacity style={styles.cancelTinyBtn} onPress={cancelDownload}>
+                        <MaterialCommunityIcons name="close" size={14} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
                   ) : (
                     <TouchableOpacity style={styles.updateInlineBtn} onPress={handleDownloadAndInstall}>
                       <Text style={styles.updateInlineBtnText}>Download & Install</Text>
@@ -276,7 +296,7 @@ export default function ProfileScreen() {
                 </View>
               ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                  <Text style={styles.listSubtitle}>Version 1.0.0 (Up to date)</Text>
+                  <Text style={styles.listSubtitle}>Version {currentVersion} (Up to date)</Text>
                   <MaterialCommunityIcons name="check-decagram" size={16} color="#10B981" style={{ marginLeft: 4 }} />
                 </View>
               )}
@@ -284,7 +304,7 @@ export default function ProfileScreen() {
           </View>
 
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogOut}>
-            <MaterialCommunityIcons name="logout" size={20} color={colors.background} />
+            <MaterialCommunityIcons name="logout" size={20} color="#FFF" />
             <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -299,8 +319,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9F9F9', 
   },
   topSection: {
-    backgroundColor: colors.secondary, 
-    height: '60%',
+    backgroundColor: '#AF9F85', // Updated secondary color
+    height: '67%',
     width: '100%',
   },
   header: {
@@ -311,106 +331,125 @@ const styles = StyleSheet.create({
     paddingTop: spacing.m,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '900',
     color: '#000',
+    letterSpacing: -0.5,
   },
-  avatarContainer: {
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarWrapper: {
     alignItems: 'center',
     marginTop: spacing.xl,
+  },
+  avatarContainer: {
+    width: 170,
+    height: 170,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   avatarShadow: {
     position: 'absolute',
-    width: 140,
-    height: 160,
+    width: 170,
+    height: 170,
     backgroundColor: '#000',
-    borderRadius: 20,
-    top: 5,
-    left: '50%',
-    marginLeft: -60,
+    borderRadius: 30,
+    top: 10,
+    right: -10,
   },
   avatarFrame: {
-    width: 140,
-    height: 160,
-    backgroundColor: colors.primary,
-    borderRadius: 20,
+    width: 170,
+    height: 170,
+    backgroundColor: '#FFD500', // Yellow background from reference
+    borderRadius: 30,
     overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
     borderWidth: 2,
     borderColor: '#000',
   },
   avatarImage: {
-    width: '130%',
-    height: '110%',
+    width: '100%',
+    height: '100%',
     resizeMode: 'cover',
   },
   editBadge: {
     position: 'absolute',
-    bottom: 8,
-    right: 8,
+    bottom: 12,
+    right: 12,
     backgroundColor: 'rgba(0,0,0,0.6)',
     padding: 6,
     borderRadius: 12,
   },
+  nameContainer: {
+    alignItems: 'center',
+    marginTop: 25,
+  },
   nameText: {
-    textAlign: 'center',
-    marginTop: spacing.l,
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: '900',
     color: '#000',
+    marginBottom: 4,
+  },
+  idRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   idText: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: '#333',
-    fontWeight: '600',
-    marginTop: spacing.xs,
+    fontSize: 14,
+    color: '#000',
+    fontWeight: '700',
+    opacity: 0.6,
   },
   editContainer: {
     paddingHorizontal: spacing.xl,
-    marginTop: spacing.xl,
+    marginTop: spacing.m,
   },
   editLabel: {
-    fontWeight: 'bold',
+    fontWeight: '900',
     color: '#000',
-    marginBottom: 4,
-    fontSize: 12,
+    marginBottom: 6,
+    fontSize: 14,
     textTransform: 'uppercase',
   },
   input: {
     backgroundColor: '#FFF',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#000',
     padding: spacing.m,
     borderRadius: 12,
     marginBottom: spacing.m,
     color: '#000',
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   saveBtn: {
     backgroundColor: '#000',
     padding: spacing.m,
     borderRadius: 12,
     alignItems: 'center',
+    marginTop: 10,
   },
   saveBtnText: {
     color: '#FFF',
-    fontWeight: 'bold',
-    fontSize: 16,
+    fontWeight: '900',
+    fontSize: 18,
+    textTransform: 'uppercase',
   },
   bottomSheet: {
-    backgroundColor: colors.background, 
+    backgroundColor: '#FFFFFF', 
     position: 'absolute',
-    borderTopLeftRadius: 35,
-    borderTopRightRadius: 35,
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
     paddingHorizontal: spacing.l,
-    borderWidth: 2,
-    borderColor: '#000',
-    height: screenHeight * 0.85,
-    top: screenHeight * 0.55, 
+    borderTopWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+    height: screenHeight * 0.9,
+    top: screenHeight * 0.53, 
     width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
   },
   dragArea: {
     width: '100%',
@@ -419,69 +458,89 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dragIndicator: {
-    width: 40,
-    height: 4,
+    width: 50,
+    height: 6,
     backgroundColor: '#000',
-    borderRadius: 2,
+    borderRadius: 3,
   },
   scrollContent: {
-    paddingBottom: screenHeight * 0.4, 
+    paddingTop: spacing.m,
+    paddingBottom: screenHeight * 0.45, 
   },
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.l,
+    marginBottom: spacing.xl,
   },
   listIconContainer: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    backgroundColor: colors.primary,
+    width: 55,
+    height: 55,
+    borderRadius: 27.5,
+    backgroundColor: '#D9BC67',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.m,
-    borderWidth: 2,
-    borderColor: '#000',
+    marginRight: spacing.l,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.1)',
   },
   listTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#000',
   },
   listSubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '500',
+    fontSize: 15,
+    color: '#777',
+    fontWeight: '600',
     marginTop: 2,
   },
   logoutButton: {
     flexDirection: 'row',
     backgroundColor: '#000',
-    paddingVertical: spacing.m,
-    borderRadius: 30,
+    paddingVertical: 18,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: spacing.m,
   },
   logoutText: {
-    color: colors.background,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: spacing.s,
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
+    marginLeft: spacing.m,
+    textTransform: 'uppercase',
   },
   updateInlineBtn: {
-    backgroundColor: '#00D1FF',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    backgroundColor: '#000',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: '#000',
-    marginTop: 8,
+    marginTop: 12,
     alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 0,
   },
   updateInlineBtnText: {
-    color: '#000',
-    fontWeight: 'bold',
-    fontSize: 12,
+    color: '#FFF',
+    fontWeight: '900',
+    fontSize: 15,
     textTransform: 'uppercase',
+  },
+  downloadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 12,
+  },
+  cancelTinyBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: 10,
+    padding: 4,
+    borderWidth: 1.5,
+    borderColor: '#EF4444',
   }
 });

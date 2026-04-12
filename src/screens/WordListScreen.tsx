@@ -137,6 +137,11 @@ export default function WordListScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Words</Text>
+        <MaterialCommunityIcons name="alphabetical-variant" size={28} color="#000" />
+      </View>
+
       <View style={styles.inputGroup}>
         <View style={styles.row}>
           <TextInput 
@@ -200,6 +205,19 @@ export default function WordListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: spacing.m, backgroundColor: colors.background },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.l,
+    marginTop: spacing.s,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#000',
+    letterSpacing: -1,
+  },
   inputGroup: { marginBottom: spacing.s, marginTop: spacing.s },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.s },
   input: { backgroundColor: colors.cardBackground, color: colors.textPrimary, padding: spacing.m, borderRadius: 8 },

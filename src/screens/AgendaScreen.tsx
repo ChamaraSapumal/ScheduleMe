@@ -217,8 +217,20 @@ export default function AgendaScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.l, paddingHorizontal: spacing.m, paddingTop: spacing.s },
-  headerTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: 'bold' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.l,
+    paddingHorizontal: spacing.m,
+    paddingTop: spacing.s,
+  },
+  headerTitle: {
+    color: colors.textPrimary,
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
   profileSection: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.m, paddingHorizontal: spacing.m },
   avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: spacing.m },
   avatarText: { color: colors.textDark, fontSize: 20, fontWeight: 'bold' },

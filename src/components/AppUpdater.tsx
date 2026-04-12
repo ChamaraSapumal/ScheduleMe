@@ -1,7 +1,7 @@
 import React, { useEffect, useState, createContext, useContext } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 
 export const UpdateContext = createContext<any>(null);
@@ -55,6 +55,23 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
     return 0;
   };
 
+  const downloadResumable = React.useRef<FileSystem.DownloadResumable | null>(null);
+  
+  const cancelDownload = async () => {
+    if (downloadResumable.current) {
+      try {
+        await downloadResumable.current.cancelAsync();
+        console.log('Download cancelled.');
+      } catch (error) {
+        console.warn('Error cancelling download:', error);
+      } finally {
+        downloadResumable.current = null;
+        setIsDownloading(false);
+        setDownloadProgress(0);
+      }
+    }
+  };
+
   const handleDownloadAndInstall = async () => {
     if (!downloadUrl) return;
 
@@ -63,17 +80,21 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
       // Construct a local uri for the downloaded APK
       const fileUri = `${FileSystem.documentDirectory}ScheduledMe_Update.apk`;
 
-      const downloadResumable = FileSystem.createDownloadResumable(
+      downloadResumable.current = FileSystem.createDownloadResumable(
         downloadUrl,
         fileUri,
-        {},
+        {
+          headers: {
+            'User-Agent': 'ScheduleMe-AppUpdater'
+          }
+        },
         (progressEvent) => {
           const progress = progressEvent.totalBytesWritten / progressEvent.totalBytesExpectedToWrite;
           setDownloadProgress(progress);
         }
       );
 
-      const result = await downloadResumable.downloadAsync();
+      const result = await downloadResumable.current.downloadAsync();
 
       if (result) {
         // Must convert the standard file uri to an Android content URI 
@@ -86,16 +107,19 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
           type: 'application/vnd.android.package-archive',
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Update Download failed:', error);
-      Alert.alert('Download Error', 'Could not download the update. Check your internet connection.');
+      Alert.alert(
+        'Download Error', 
+        `Could not download the update. Error: ${error.message || 'Unknown error'}\n\nPlease check your internet connection.`
+      );
     } finally {
       setIsDownloading(false);
     }
   };
 
   return (
-    <UpdateContext.Provider value={{ updateAvailable, latestVersion, downloadUrl, isDownloading, downloadProgress, handleDownloadAndInstall, checkVersion }}>
+    <UpdateContext.Provider value={{ updateAvailable, latestVersion, downloadUrl, isDownloading, downloadProgress, handleDownloadAndInstall, cancelDownload, checkVersion }}>
       {children}
     </UpdateContext.Provider>
   );
@@ -110,7 +134,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   brutalistCard: {
-    backgroundColor: '#FFDE59', // High contrast yellow
+    backgroundColor: '#D9BC67', // Theme primary mustard
     borderWidth: 4,
     borderColor: '#000',
     padding: 30,
@@ -119,7 +143,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 8, height: 8 },
     shadowOpacity: 1,
     shadowRadius: 0,
-    elevation: 0, // Disable android default shadow
+    elevation: 0, 
   },
   title: {
     fontSize: 28,
@@ -136,7 +160,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   brutalistButton: {
-    backgroundColor: '#00D1FF', // High contrast cyan
+    backgroundColor: '#000', // Solid black
     borderWidth: 3,
     borderColor: '#000',
     paddingVertical: 15,
@@ -148,9 +172,9 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   buttonText: {
-    color: '#000',
+    color: '#FFF', // White text
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
     textTransform: 'uppercase',
   },
   progressContainer: {

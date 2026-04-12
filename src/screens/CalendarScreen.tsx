@@ -215,8 +215,19 @@ export default function CalendarScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, padding: spacing.m },
-  header: { alignItems: 'center', marginBottom: spacing.l, paddingTop: spacing.s },
-  headerTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: 'bold' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.l,
+    paddingTop: spacing.s,
+  },
+  headerTitle: {
+    color: colors.textPrimary,
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
   calendarContainer: { borderRadius: 16, overflow: 'hidden', marginBottom: spacing.xl },
   calendar: { borderRadius: 16 },
   coursesContainer: { gap: spacing.m },

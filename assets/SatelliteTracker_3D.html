@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
+    #globeViz { width: 100vw; height: 100vh; }
+    #hud {
+      position: absolute; top: 10px; right: 10px; width: 200px; padding: 12px;
+      background: rgba(0, 0, 0, 0.85); border: 2px solid #FFD500; color: #FFF;
+      display: none; pointer-events: none; border-radius: 8px; z-index: 100;
+      backdrop-filter: blur(5px);
+    }
+    .hud-title { font-weight: 900; font-size: 14px; margin-bottom: 8px; color: #FFD500; text-transform: uppercase; border-bottom: 1px solid rgba(255,213,0,0.3); }
+    .hud-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; }
+    #error-log { position: absolute; bottom: 0; width: 100%; color: red; font-size: 10px; background: rgba(0,0,0,0.5); z-index: 999; }
+    #loading-hint { position: absolute; top: 50%; width: 100%; text-align: center; color: #FFF; font-weight: 900; opacity: 0.5; }
+  </style>
+  <!-- Use stable, versioned UMD bundles -->
+  <script src="https://unpkg.com/three@0.145.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.145.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://unpkg.com/globe.gl@2.31.2/dist/globe.gl.min.js"></script>
+</head>
+<body>
+  <div id="loading-hint">INITIALIZING ORBITAL LINK...</div>
+  <div id="globeViz"></div>
+  <div id="error-log"></div>
+  <div id="hud">
+    <div id="hud-name" class="hud-title">SATELLITE NAME</div>
+    <div class="hud-row"><span>ALTITUDE</span><span id="hud-alt" style="font-weight:900">0 KM</span></div>
+    <div class="hud-row"><span>VELOCITY</span><span id="hud-vel" style="font-weight:900">0 KM/H</span></div>
+    <div class="hud-row"><span>COORD</span><span id="hud-coord" style="font-weight:900">0, 0</span></div>
+  </div>
+
+  <script>
+    const log = (msg) => { document.getElementById('error-log').innerText += msg + '\n'; };
+    window.onerror = (m, u, l) => log(`Error: ${m} at ${l}`);
+
+    try {
+      const INITIAL_SATS = [
+        { name: 'ISS (Zarya)', lat: 0, lng: 0, alt: 0.15, color: '#FFD500', size: 2, type: 'iss' },
+        { name: 'Hubble', lat: 20, lng: -40, alt: 0.2, color: '#00D1FF', size: 1.5, type: 'hubble' }
+      ];
+
+      const loader = new THREE.GLTFLoader();
+      const models = {};
+
+      const loadModel = (name, url, scale) => {
+        loader.load(url, (gltf) => {
+          gltf.scene.scale.set(scale, scale, scale);
+          models[name] = gltf.scene;
+        }, undefined, (e) => log(`Model Load Error (${name}): ${e.message}`));
+      };
+
+      loadModel('hubble', 'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/Hubble%20Space%20Telescope/hubble.glb', 0.1);
+      loadModel('iss', 'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/International%20Space%20Station%20(B)/iss.glb', 0.02);
+
+      const world = Globe()(document.getElementById('globeViz'))
+        .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
+        .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+        .customLayerData(INITIAL_SATS)
+        .customThreeObject(d => {
+          if (d.type && models[d.type]) return models[d.type].clone();
+          return new THREE.Mesh(new THREE.BoxGeometry(d.size, d.size, d.size), new THREE.MeshLambertMaterial({ color: d.color }));
+        })
+        .customThreeObjectUpdate((obj, d) => {
+          Object.assign(obj.position, world.getCoords(d.lat, d.lng, d.alt));
+          obj.rotation.y += 0.02;
+        })
+        .onObjectClick(obj => {
+          showHUD(obj);
+          world.pointOfView({ lat: obj.lat, lng: obj.lng, alt: 0.5 }, 1000);
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SELECTION', data: obj }));
+        });
+
+      world.controls().touches.ONE = null;
+      world.controls().autoRotate = true;
+      world.controls().autoRotateSpeed = 0.2;
+
+      document.getElementById('loading-hint').style.display = 'none';
+
+      function showHUD(d) {
+        document.getElementById('hud').style.display = 'block';
+        document.getElementById('hud-name').innerText = d.name;
+        document.getElementById('hud-alt').innerText = Math.round(d.altitude || 0) + ' KM';
+        document.getElementById('hud-vel').innerText = Math.round(d.velocity || 0).toLocaleString() + ' KM/H';
+        document.getElementById('hud-coord').innerText = `${d.lat.toFixed(1)}, ${d.lng.toFixed(1)}`;
+      }
+
+      window.addEventListener('message', (e) => {
+        try {
+          const sats = JSON.parse(e.data);
+          if (Array.isArray(sats)) {
+            world.customLayerData(sats);
+            const selected = sats.find(s => s.name === document.getElementById('hud-name').innerText);
+            if (selected) showHUD(selected);
+          }
+        } catch (err) {}
+      });
+    } catch (e) {
+      log(`Init Error: ${e.message}`);
+    }
+  </script>
+</body>
+</html>

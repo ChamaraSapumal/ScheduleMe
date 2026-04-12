@@ -2,14 +2,14 @@
   "expo": {
     "name": "ScheduleMe",
     "slug": "ScheduleMe",
-    "version": "1.0.0",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
+      "image": "./assets/splashdesign.png",
+      "resizeMode": "cover",
       "backgroundColor": "#15171D"
     },
     "ios": {
