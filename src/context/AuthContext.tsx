@@ -13,8 +13,8 @@ interface AuthContextType {
   isUnlocked: boolean;
   setUnlocked: (unlocked: boolean) => void;
   hasSeenOnboarding: boolean | null;
-  completeOnboarding: () => Promise<void>;
-  resetOnboarding: () => Promise<void>;
+  completeOnboarding: (uid?: string) => Promise<void>;
+  resetOnboarding: (uid?: string) => Promise<void>;
   userName: string | null;
   setUserName: (name: string | null) => void;
 }
@@ -99,20 +99,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [isUnlocked]);
 
   useEffect(() => {
-    const checkOnboarding = async () => {
-      try {
-        const val = await AsyncStorage.getItem('@onboarding_complete');
-        setHasSeenOnboarding(val === 'true');
-      } catch (err) {
-        setHasSeenOnboarding(false);
-      }
-    };
-    checkOnboarding();
-
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       
       if (currentUser) {
+        // Check user-specific onboarding status
+        try {
+          const val = await AsyncStorage.getItem(`@onboarding_complete_${currentUser.uid}`);
+          setHasSeenOnboarding(val === 'true');
+        } catch (err) {
+          setHasSeenOnboarding(false);
+        }
+
         // 1. Try to load name from AsyncStorage immediately for zero-lag UI
         try {
           const cachedName = await AsyncStorage.getItem(`cached_name_${currentUser.uid}`);
@@ -133,6 +131,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } else {
         setUserName(null);
+        setHasSeenOnboarding(false); // Default to false (show tour if they sign up/in) to clear global loading gate
       }
       
       setLoading(false);
@@ -150,18 +149,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const completeOnboarding = async () => {
+  const completeOnboarding = async (uid?: string) => {
+    const targetUid = uid || user?.uid;
+    if (!targetUid) return;
     try {
-      await AsyncStorage.setItem('@onboarding_complete', 'true');
+      await AsyncStorage.setItem(`@onboarding_complete_${targetUid}`, 'true');
       setHasSeenOnboarding(true);
     } catch (error) {
       console.error("Error setting onboarding:", error);
     }
   };
 
-  const resetOnboarding = async () => {
+  const resetOnboarding = async (uid?: string) => {
+    const targetUid = uid || user?.uid;
+    if (!targetUid) return;
     try {
-      await AsyncStorage.removeItem('@onboarding_complete');
+      await AsyncStorage.removeItem(`@onboarding_complete_${targetUid}`);
       setHasSeenOnboarding(false);
     } catch (error) {
       console.error("Error resetting onboarding:", error);

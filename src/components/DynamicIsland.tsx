@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Dimensions,
 import { BlurView } from 'expo-blur';
 import { useTimer } from '../context/TimerContext';
 import { useCustomAlert } from '../context/AlertContext';
+import { AuthContext } from '../context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import Svg, { Circle } from 'react-native-svg';
@@ -44,6 +45,7 @@ const CircularProgress = ({ progress, size = 30 }: { progress: number, size?: nu
 };
 
 export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null }) => {
+  const { user, isUnlocked } = useContext(AuthContext);
   const { timeLeft, totalTime, isRunning, mode, toggleTimer, resetTimer } = useTimer();
   const { activeAlert, hideAlert } = useCustomAlert();
   
@@ -54,10 +56,10 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
   const autoHideTimer = useRef<NodeJS.Timeout | null>(null);
 
   const isTimerModeVisible = isRunning && 
+    user &&
+    isUnlocked &&
     currentRoute && 
-    currentRoute !== 'Focus' && 
-    currentRoute !== 'Lock' && 
-    currentRoute !== 'Login';
+    currentRoute !== 'Focus';
 
   const isAlertActive = !!activeAlert;
   const isIslandVisible = isTimerModeVisible || isAlertActive;

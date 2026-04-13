@@ -2,11 +2,11 @@
   "expo": {
     "name": "ScheduleMe",
     "slug": "ScheduleMe",
-    "version": "2.2.0",
+    "version": "2.3.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splashdesign.png",
       "resizeMode": "cover",
@@ -23,7 +23,14 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.sapuxcreation.ScheduleMe",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
+      ]
     },
     "notification": {
       "icon": "./assets/notification_icon.png",
@@ -33,7 +40,19 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "plugins": [
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf"
+          ]
+        }
+      ],
+      "expo-asset",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-community/datetimepicker",
@@ -42,21 +61,20 @@
         "expo-build-properties",
         {
           "android": {
-            "enablePngCrunch": false
+            "enablePngCrunch": false,
+            "newArchEnabled": false
           }
         }
       ]
     ],
     "extra": {
       "eas": {
-        "projectId": "fbf8c3b7-7bdf-451e-b443-2b85ea2df43b"
+        "projectId": "808ea7fa-6b24-4a6e-9a47-bb4e1cb87035"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "updates": {
-      "url": "https://u.expo.dev/fbf8c3b7-7bdf-451e-b443-2b85ea2df43b"
-    }
+    "owner": "chamarax"
   }
 }

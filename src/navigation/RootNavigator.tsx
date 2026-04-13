@@ -171,7 +171,10 @@ export default function RootNavigator() {
     }
   };
 
-  const shouldShift = isRunning && currentRoute !== 'Focus';
+  const shouldShift = isRunning && 
+    user && 
+    isUnlocked &&
+    currentRoute !== 'Focus';
   const shiftAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -183,7 +186,7 @@ export default function RootNavigator() {
     }).start();
   }, [shouldShift]);
 
-  if (loading || hasSeenOnboarding === null) {
+  if (loading || (user && hasSeenOnboarding === null)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />

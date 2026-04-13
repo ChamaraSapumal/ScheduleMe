@@ -69,7 +69,7 @@ const TOUR_STEPS = [
 ];
 
 export default function InAppTour() {
-  const { hasSeenOnboarding, completeOnboarding } = useContext(AuthContext);
+  const { hasSeenOnboarding, completeOnboarding, user, isUnlocked } = useContext(AuthContext);
   const navigation = useNavigation<NavigationProp<any>>();
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -78,7 +78,8 @@ export default function InAppTour() {
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (hasSeenOnboarding === false && TOUR_STEPS[currentStep]) {
+    // Only attempt navigation and animation if the user is in the app and tour is active
+    if (hasSeenOnboarding === false && isUnlocked && user && TOUR_STEPS[currentStep]) {
       setTimeout(() => {
         const step = TOUR_STEPS[currentStep];
         if (step.subTarget) {
@@ -108,7 +109,7 @@ export default function InAppTour() {
         ]).start();
       }, 300);
     }
-  }, [currentStep, hasSeenOnboarding]);
+  }, [currentStep, hasSeenOnboarding, isUnlocked, user]);
 
   // Subtle breathing pulse for the arrow
   useEffect(() => {
@@ -130,7 +131,7 @@ export default function InAppTour() {
     ).start();
   }, [pulseAnim]);
 
-  if (hasSeenOnboarding !== false) return null;
+  if (hasSeenOnboarding !== false || !isUnlocked || !user) return null;
 
   const step = TOUR_STEPS[currentStep];
 

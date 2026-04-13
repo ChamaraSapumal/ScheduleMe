@@ -26,8 +26,8 @@ export default function LoginScreen() {
           showAlert({ title: 'Error', message: 'Passwords do not match.' });
           return;
         }
-        await createUserWithEmailAndPassword(auth, email, password);
-        await resetOnboarding(); // Forcefully clear any previous flags to ensure tour runs!
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await resetOnboarding(userCredential.user.uid); // Forcefully clear flag for THIS specific new user
       } else {
         await signInWithEmailAndPassword(auth, email, password);
         // They are an existing user logging in on a new device, skip the tour:
