@@ -1,13 +1,17 @@
-import React, { useContext } from 'react';
-import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
+import { ActivityIndicator, View, Platform, StyleSheet, Animated, Dimensions } from 'react-native';
+import React, { useContext, useRef, useEffect } from 'react';
+import { NavigationContainer, DefaultTheme, useNavigationContainerRef } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ActivityIndicator, View, Platform, StyleSheet } from 'react-native';
+import { useTimer } from '../context/TimerContext';
 
 import { AuthContext } from '../context/AuthContext';
 import { useAppUpdate } from '../components/AppUpdater';
 import { colors } from '../theme';
+import { TimerProvider } from '../context/TimerContext';
+import { DynamicIsland } from '../components/DynamicIsland';
 
 import LoginScreen from '../screens/LoginScreen';
 import AgendaScreen from '../screens/AgendaScreen';
@@ -34,17 +38,24 @@ const MyTheme = {
 
 function TabNavigator() {
   const { updateAvailable } = useAppUpdate();
+  const insets = useSafeAreaInsets();
+
+  const isAndroid = Platform.OS === 'android';
+  const bottomInset = insets.bottom;
+  
+  // Dynamic height calculation to avoid overlap
+  const tabHeight = Platform.OS === 'ios' ? 85 : (70 + (bottomInset > 0 ? bottomInset - 5 : 0));
+  const tabPaddingBottom = Platform.OS === 'ios' ? 30 : Math.max(10, bottomInset);
 
   return (
-    <View style={{ flex: 1 }}>
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
           backgroundColor: colors.primary,
           borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 85 : 70,
-          paddingBottom: Platform.OS === 'ios' ? 30 : 10,
+          height: tabHeight,
+          paddingBottom: tabPaddingBottom,
           paddingTop: 10,
           elevation: 20,
           shadowColor: '#000',
@@ -97,8 +108,6 @@ function TabNavigator() {
       <Tab.Screen name="Focus" component={FocusScreen} />
       <Tab.Screen name="Tools" component={SelfDevHubScreen} />
     </Tab.Navigator>
-    <InAppTour />
-    </View>
   );
 }
 
@@ -131,6 +140,48 @@ const styles = StyleSheet.create({
 
 export default function RootNavigator() {
   const { user, loading, isUnlocked, hasSeenOnboarding } = useContext(AuthContext);
+  const { isRunning } = useTimer();
+  const navigationRef = useNavigationContainerRef();
+
+  const [currentRoute, setCurrentRoute] = React.useState<string | null>(null);
+
+  // Set initial route
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        if (navigationRef.isReady()) {
+            const state = navigationRef.getRootState();
+            onStateChange(state);
+        }
+    }, 500); // Small delay to let navigation settle
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Detect current route for the root layout shift
+  const onStateChange = (state: any) => {
+    try {
+      if (!state) return;
+      let route = state.routes[state.index];
+      while (route && route.state) {
+        const nextIndex = route.state.index ?? 0;
+        route = route.state.routes[nextIndex];
+      }
+      setCurrentRoute(route?.name || null);
+    } catch (e) {
+      setCurrentRoute(null);
+    }
+  };
+
+  const shouldShift = isRunning && currentRoute !== 'Focus';
+  const shiftAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(shiftAnim, {
+      toValue: shouldShift ? 90 : 0, // 50 (top) + 40 (height) = 90px to clear perfectly at new position
+      friction: 8,
+      tension: 50,
+      useNativeDriver: false,
+    }).start();
+  }, [shouldShift]);
 
   if (loading || hasSeenOnboarding === null) {
     return (
@@ -141,23 +192,29 @@ export default function RootNavigator() {
   }
 
   return (
-    <NavigationContainer theme={MyTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
-          isUnlocked ? (
-            <Stack.Group>
-              <Stack.Screen name="MainTabs" component={TabNavigator} />
-              <Stack.Screen name="Add" component={AddCourseScreen} />
-              <Stack.Screen name="ShareTimetable" component={ShareTimetableScreen} />
-              <Stack.Screen name="ScanTimetable" component={ScanTimetableScreen} />
-            </Stack.Group>
-          ) : (
-            <Stack.Screen name="Lock" component={LockScreen} />
-          )
-        ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
-        )}
-      </Stack.Navigator>
+    <NavigationContainer theme={MyTheme} onStateChange={onStateChange} ref={navigationRef}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <Animated.View style={{ flex: 1, marginTop: shiftAnim }}>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            {user ? (
+              isUnlocked ? (
+                <Stack.Group>
+                  <Stack.Screen name="MainTabs" component={TabNavigator} />
+                  <Stack.Screen name="Add" component={AddCourseScreen} />
+                  <Stack.Screen name="ShareTimetable" component={ShareTimetableScreen} />
+                  <Stack.Screen name="ScanTimetable" component={ScanTimetableScreen} />
+                </Stack.Group>
+              ) : (
+                <Stack.Screen name="Lock" component={LockScreen} />
+              )
+            ) : (
+              <Stack.Screen name="Login" component={LoginScreen} />
+            )}
+          </Stack.Navigator>
+        </Animated.View>
+        <DynamicIsland currentRoute={currentRoute} />
+        <InAppTour />
+      </View>
     </NavigationContainer>
   );
 }

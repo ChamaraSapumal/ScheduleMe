@@ -82,6 +82,7 @@ export default function AttendanceScreen() {
       showAlert({
         title: 'Eligibility Warning!',
         message: `Your attendance in ${courseName} has dropped below 80%. Please attend your next classes!`,
+        type: 'warning'
       });
     }
   };
@@ -194,7 +195,7 @@ export default function AttendanceScreen() {
             <MaterialCommunityIcons name="calendar-check-outline" size={24} color={theme.textMain} />
             <Text style={styles.headerText}>Eligibility Tracker</Text>
           </View>
-          <TouchableOpacity style={styles.notifBtn} onPress={() => showAlert({ title: 'System Healthy', message: 'Attendance data is synced locally.' })}>
+          <TouchableOpacity style={styles.notifBtn} onPress={() => showAlert({ title: 'System Healthy', message: 'Attendance data is synced locally.', type: 'success' })}>
             <MaterialCommunityIcons name="shield-check-outline" size={24} color={theme.textMain} />
           </TouchableOpacity>
         </View>

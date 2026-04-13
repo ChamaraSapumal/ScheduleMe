@@ -1,10 +1,10 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing, Pressable } from 'react-native';
-import { colors, spacing } from '../theme';
+import React, { createContext, useState, useContext, ReactNode, useRef } from 'react';
+import { StyleSheet } from 'react-native';
 
 interface AlertOptions {
   title: string;
   message: string;
+  type?: 'info' | 'success' | 'warning' | 'error';
   onConfirm?: () => void;
   confirmText?: string;
   cancelText?: string;
@@ -14,99 +14,30 @@ interface AlertOptions {
 interface AlertContextType {
   showAlert: (options: AlertOptions) => void;
   hideAlert: () => void;
+  activeAlert: AlertOptions | null;
 }
 
 const AlertContext = createContext<AlertContextType | undefined>(undefined);
 
 export const AlertProvider = ({ children }: { children: ReactNode }) => {
-  const [visible, setVisible] = useState(false);
-  const [options, setOptions] = useState<AlertOptions | null>(null);
-  
-  const scaleValue = useRef(new Animated.Value(0.8)).current;
-  const opacityValue = useRef(new Animated.Value(0)).current;
+  const [activeAlert, setActiveAlert] = useState<AlertOptions | null>(null);
 
   const showAlert = (newOptions: AlertOptions) => {
-    console.log("Showing Custom Alert:", newOptions.title);
-    setOptions(newOptions);
-    setVisible(true);
-    
-    Animated.parallel([
-      Animated.spring(scaleValue, {
-        toValue: 1,
-        friction: 5,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityValue, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      })
-    ]).start();
+    console.log("Triggering Dynamic Island Alert:", newOptions.title);
+    setActiveAlert(newOptions);
   };
 
   const hideAlert = () => {
-    Animated.parallel([
-      Animated.timing(scaleValue, {
-        toValue: 0.8,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityValue, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      })
-    ]).start(() => {
-      setVisible(false);
-      setOptions(null);
-    });
-  };
-
-  const handleConfirm = () => {
-    if (options?.onConfirm) options.onConfirm();
-    hideAlert();
+    setActiveAlert(null);
   };
 
   return (
-    <AlertContext.Provider value={{ showAlert, hideAlert }}>
+    <AlertContext.Provider value={{ showAlert, hideAlert, activeAlert }}>
       {children}
-      <Modal
-        transparent
-        visible={visible}
-        animationType="none"
-        onRequestClose={hideAlert}
-      >
-        <Pressable style={styles.overlay} onPress={hideAlert}>
-          <Animated.View 
-            style={[
-              styles.modalContainer, 
-              { 
-                opacity: opacityValue,
-                transform: [{ scale: scaleValue }]
-              }
-            ]}
-          >
-            <View style={styles.content}>
-               <View style={styles.iconCircle}>
-                  <Text style={styles.iconText}>!</Text>
-               </View>
-               <Text style={styles.title}>{options?.title}</Text>
-               <Text style={styles.message}>{options?.message}</Text>
-            </View>
-            
-            <View style={styles.footer}>
-              {options?.showCancel && (
-                <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={hideAlert}>
-                  <Text style={styles.cancelText}>{options.cancelText || 'Cancel'}</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity style={styles.button} onPress={handleConfirm}>
-                <Text style={styles.confirmText}>{options?.confirmText || 'OK'}</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </Pressable>
-      </Modal>
+      {/* 
+          Modal Alert UI has been disabled in favor of Dynamic Island Alerts. 
+          The state is now consumed by the DynamicIsland component.
+      */}
     </AlertContext.Provider>
   );
 };
@@ -118,90 +49,3 @@ export const useCustomAlert = () => {
   }
   return context;
 };
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-  },
-  modalContainer: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: colors.cardBackground,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#000',
-    overflow: 'hidden',
-    elevation: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-  },
-  content: {
-    padding: spacing.xl,
-    alignItems: 'center',
-  },
-  iconCircle: {
-     width: 56,
-     height: 56,
-     borderRadius: 28,
-     backgroundColor: colors.primary,
-     justifyContent: 'center',
-     alignItems: 'center',
-     marginBottom: spacing.m,
-     borderWidth: 2,
-     borderColor: '#000',
-  },
-  iconText: {
-     color: '#000',
-     fontSize: 28,
-     fontWeight: 'bold',
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: spacing.s,
-  },
-  message: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-  footer: {
-    flexDirection: 'row',
-    padding: spacing.l,
-    paddingTop: 0,
-    gap: spacing.m,
-  },
-  button: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    padding: spacing.m,
-    alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#000',
-  },
-  cancelButton: {
-    backgroundColor: '#FFF',
-    borderWidth: 2,
-    borderColor: '#000',
-  },
-  confirmText: {
-    color: colors.textDark,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  cancelText: {
-    color: colors.textSecondary,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-});

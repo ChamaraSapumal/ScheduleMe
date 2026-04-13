@@ -60,22 +60,6 @@ const TOUR_STEPS = [
   },
   {
     target: 'Tools',
-    subTarget: 'Astro',
-    title: 'STELLAR EXPLORER',
-    description: 'Need a study break? Watch real-time satellite positions orbiting above you.',
-    position: { top: 150, alignSelf: 'center' },
-    arrowDirection: 'none',
-  },
-  {
-    target: 'Tools',
-    subTarget: 'Knowledge',
-    title: 'DAILY WIKI',
-    description: 'Discover something new every day with curated interesting articles and facts.',
-    position: { top: 150, alignSelf: 'center' },
-    arrowDirection: 'none',
-  },
-  {
-    target: 'Tools',
     subTarget: 'My profile',
     title: 'SECURE PROFILE',
     description: 'Set your name, update your photo, and manage your security vault settings here.',
@@ -88,7 +72,7 @@ export default function InAppTour() {
   const { hasSeenOnboarding, completeOnboarding } = useContext(AuthContext);
   const navigation = useNavigation<NavigationProp<any>>();
   const [currentStep, setCurrentStep] = useState(0);
-  
+
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.9)).current;
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
@@ -98,17 +82,17 @@ export default function InAppTour() {
       setTimeout(() => {
         const step = TOUR_STEPS[currentStep];
         if (step.subTarget) {
-          navigation.navigate('MainTabs', { 
-            screen: step.target, 
-            params: { screen: step.subTarget } 
+          navigation.navigate('MainTabs', {
+            screen: step.target,
+            params: { screen: step.subTarget }
           });
         } else {
           navigation.navigate('MainTabs', { screen: step.target });
         }
-        
+
         fadeAnim.setValue(0);
         scaleAnim.setValue(0.9);
-        
+
         Animated.parallel([
           Animated.timing(fadeAnim, {
             toValue: 1,
@@ -155,60 +139,60 @@ export default function InAppTour() {
       setCurrentStep(currentStep + 1);
     } else {
       await completeOnboarding();
-      navigation.navigate('MainTabs', { screen: 'Agenda' }); 
+      navigation.navigate('MainTabs', { screen: 'Agenda' });
     }
   };
 
   return (
     <View style={StyleSheet.absoluteFill}>
-       {/* Soft dark translucent mask */}
-       <View style={styles.backdrop} />
+      {/* Soft dark translucent mask */}
+      <View style={styles.backdrop} />
 
-       {/* Floating tooltip box dynamically positioned */}
-       <Animated.View 
-         style={[
-           styles.tooltipContainer, 
-           step.position as any, 
-           { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }
-         ]}
-       >
-          {step.arrowDirection === 'up' && (
-             <Animated.View style={[styles.arrowUp, { transform: [{ scale: pulseAnim }] }]} />
-          )}
+      {/* Floating tooltip box dynamically positioned */}
+      <Animated.View
+        style={[
+          styles.tooltipContainer,
+          step.position as any,
+          { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }
+        ]}
+      >
+        {step.arrowDirection === 'up' && (
+          <Animated.View style={[styles.arrowUp, { transform: [{ scale: pulseAnim }] }]} />
+        )}
 
-          <View style={styles.card}>
-             <View style={styles.charContainer}>
-                <Image 
-                  source={require('../../assets/in-app-tour.png')} 
-                  style={styles.charImage} 
-                  resizeMode="contain"
-                />
-             </View>
-
-             <View style={styles.cardHeader}>
-               <Text style={styles.title}>{step.title}</Text>
-             </View>
-             
-             <Text style={styles.description}>{step.description}</Text>
-             
-             <View style={styles.footer}>
-                <Text style={styles.stepCounter}>{currentStep + 1} / {TOUR_STEPS.length}</Text>
-                
-                <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-                   <Text style={styles.nextText}>
-                      {currentStep === TOUR_STEPS.length - 1 ? "FINISH" : "NEXT"}
-                   </Text>
-                   {currentStep !== TOUR_STEPS.length - 1 && (
-                     <MaterialCommunityIcons name="arrow-right" size={18} color="#FFF" />
-                   )}
-                </TouchableOpacity>
-             </View>
+        <View style={styles.card}>
+          <View style={styles.charContainer}>
+            <Image
+              source={require('../../assets/in-app-tour.png')}
+              style={styles.charImage}
+              resizeMode="contain"
+            />
           </View>
 
-          {step.arrowDirection === 'down' && (
-             <Animated.View style={[styles.arrowDown, { transform: [{ scale: pulseAnim }] }]} />
-          )}
-       </Animated.View>
+          <View style={styles.cardHeader}>
+            <Text style={styles.title}>{step.title}</Text>
+          </View>
+
+          <Text style={styles.description}>{step.description}</Text>
+
+          <View style={styles.footer}>
+            <Text style={styles.stepCounter}>{currentStep + 1} / {TOUR_STEPS.length}</Text>
+
+            <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+              <Text style={styles.nextText}>
+                {currentStep === TOUR_STEPS.length - 1 ? "FINISH" : "NEXT"}
+              </Text>
+              {currentStep !== TOUR_STEPS.length - 1 && (
+                <MaterialCommunityIcons name="arrow-right" size={18} color="#FFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {step.arrowDirection === 'down' && (
+          <Animated.View style={[styles.arrowDown, { transform: [{ scale: pulseAnim }] }]} />
+        )}
+      </Animated.View>
     </View>
   );
 }
@@ -309,7 +293,7 @@ const styles = StyleSheet.create({
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderBottomColor: '#FFFFFF',
-    marginBottom: -1, 
+    marginBottom: -1,
     alignSelf: 'flex-end',
     marginRight: 35,
   },

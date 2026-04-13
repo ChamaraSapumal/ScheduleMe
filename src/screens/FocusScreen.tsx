@@ -1,17 +1,13 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ScrollView, AppState, LayoutAnimation, UIManager, Platform, Animated } from 'react-native';
+import React, { useEffect, useContext, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ScrollView, Platform, Animated } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCustomAlert } from '../context/AlertContext';
 import { AuthContext } from '../context/AuthContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAudioPlayer } from 'expo-audio';
+
+import { useTimer } from '../context/TimerContext';
 
 const { width } = Dimensions.get('window');
-
-if (Platform.OS === 'android') {
-  // setLayoutAnimationEnabledExperimental is a no-op on New Architecture
-}
 
 // Bubbly Pastel Theme Colors
 const theme = {
@@ -27,19 +23,9 @@ export default function FocusScreen() {
   const { showAlert } = useCustomAlert();
   const { user, userName } = useContext(AuthContext);
   const firstName = userName ? userName.split(' ')[0] : 'Student';
-  const player = useAudioPlayer({ uri: 'https://actions.google.com/sounds/v1/water/water_drop.ogg' });
-
-  const [isRunning, setIsRunning] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
-  const [mode, setMode] = useState<'FOCUS' | 'BREAK'>('FOCUS');
-
-  const tickRef = useRef(Date.now());
-  const stateRef = useRef({ isRunning, timeLeft, mode });
+  
+  const { timeLeft, isRunning, mode, toggleTimer, resetTimer, switchMode } = useTimer();
   const bounceAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    stateRef.current = { isRunning, timeLeft, mode };
-  }, [isRunning, timeLeft, mode]);
 
   useEffect(() => {
     if (!isRunning) {
@@ -49,118 +35,10 @@ export default function FocusScreen() {
           Animated.timing(bounceAnim, { toValue: 0, duration: 1000, useNativeDriver: true })
         ])
       ).start();
+    } else {
+      bounceAnim.setValue(0);
     }
   }, [isRunning]);
-
-  const playZenSound = async () => {
-    try {
-      player.seekTo(0);
-      player.play();
-    } catch (e) { }
-  };
-
-  // Load state on mount / app active
-  useEffect(() => {
-    const loadState = async () => {
-      try {
-        const stored = await AsyncStorage.getItem('@pomodoro_state');
-        if (stored) {
-          const { targetTime, mode: storedMode, wasRunning, remainder } = JSON.parse(stored);
-          const currentMode = storedMode || 'FOCUS';
-          setMode(currentMode);
-
-          if (wasRunning && targetTime) {
-            const remaining = Math.round((targetTime - Date.now()) / 1000);
-            if (remaining > 0) {
-              setTimeLeft(remaining);
-              setIsRunning(true);
-            } else {
-              // Completed while away
-              const newMode = currentMode === 'FOCUS' ? 'BREAK' : 'FOCUS';
-              setMode(newMode);
-              setTimeLeft(newMode === 'FOCUS' ? 25 * 60 : 5 * 60);
-              setIsRunning(false);
-              playZenSound();
-            }
-          } else {
-            setTimeLeft(remainder || (currentMode === 'FOCUS' ? 25 * 60 : 5 * 60));
-            setIsRunning(false);
-          }
-        }
-      } catch (e) { }
-    };
-
-    loadState();
-
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active') {
-        loadState();
-      } else if (nextAppState.match(/inactive|background/)) {
-        const { isRunning: currRun, timeLeft: currLeft, mode: currMode } = stateRef.current;
-        if (currRun) {
-          const targetTime = Date.now() + (currLeft * 1000);
-          AsyncStorage.setItem('@pomodoro_state', JSON.stringify({ targetTime, mode: currMode, wasRunning: true }));
-        } else {
-          AsyncStorage.setItem('@pomodoro_state', JSON.stringify({ remainder: currLeft, mode: currMode, wasRunning: false }));
-        }
-      }
-    });
-
-    return () => {
-      subscription.remove();
-      const { isRunning: currRun, timeLeft: currLeft, mode: currMode } = stateRef.current;
-      if (currRun) {
-        const targetTime = Date.now() + (currLeft * 1000);
-        AsyncStorage.setItem('@pomodoro_state', JSON.stringify({ targetTime, mode: currMode, wasRunning: true }));
-      } else {
-        AsyncStorage.setItem('@pomodoro_state', JSON.stringify({ remainder: currLeft, mode: currMode, wasRunning: false }));
-      }
-    };
-  }, []);
-
-  // Timer loop
-  useEffect(() => {
-    let interval: any;
-    if (isRunning && timeLeft > 0) {
-      tickRef.current = Date.now();
-      interval = setInterval(() => {
-        const now = Date.now();
-        const delta = Math.floor((now - tickRef.current) / 1000);
-        if (delta >= 1) {
-          setTimeLeft((prev) => {
-            const next = prev - delta;
-            return next > 0 ? next : 0;
-          });
-          tickRef.current += delta * 1000;
-        }
-      }, 250);
-    } else if (timeLeft === 0 && isRunning) {
-      playZenSound();
-      const newMode = mode === 'FOCUS' ? 'BREAK' : 'FOCUS';
-      setMode(newMode);
-      setTimeLeft(newMode === 'FOCUS' ? 25 * 60 : 5 * 60);
-      setIsRunning(false);
-    }
-    return () => clearInterval(interval);
-  }, [isRunning, timeLeft, mode]);
-
-  const toggleTimer = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setIsRunning(!isRunning);
-  };
-
-  const resetTimer = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setIsRunning(false);
-    setTimeLeft(mode === 'FOCUS' ? 25 * 60 : 5 * 60);
-  };
-
-  const switchMode = (newMode: 'FOCUS' | 'BREAK') => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setMode(newMode);
-    setTimeLeft(newMode === 'FOCUS' ? 25 * 60 : 5 * 60);
-    setIsRunning(false);
-  };
 
   const minutes = Math.floor(timeLeft / 60).toString().padStart(2, '0');
   const seconds = (timeLeft % 60).toString().padStart(2, '0');
@@ -184,7 +62,7 @@ export default function FocusScreen() {
               <Text style={[styles.segmentBtnText, mode === 'BREAK' && styles.segmentTextActive]}>Break</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.bellBtn} onPress={() => showAlert({ title: 'Notifications Enabled', message: 'You will be notified when your Pomodoro session completes!' })}>
+          <TouchableOpacity style={styles.bellBtn} onPress={() => showAlert({ title: 'Notifications Enabled', message: 'You will be notified when your Pomodoro session completes!', type: 'info' })}>
             <MaterialCommunityIcons name="bell-outline" size={24} color={theme.textMain} />
           </TouchableOpacity>
         </View>

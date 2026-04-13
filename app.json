@@ -2,7 +2,7 @@
   "expo": {
     "name": "ScheduleMe",
     "slug": "ScheduleMe",
-    "version": "2.1.2",
+    "version": "2.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -24,6 +24,11 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.sapuxcreation.ScheduleMe",
       "googleServicesFile": "./google-services.json"
+    },
+    "notification": {
+      "icon": "./assets/notification_icon.png",
+      "color": "#3E315A",
+      "iosDisplayInForeground": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
