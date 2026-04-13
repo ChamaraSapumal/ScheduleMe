@@ -196,7 +196,7 @@ export default function ShareTimetableScreen({ navigation }: any) {
          <Animated.View style={[styles.thankYouOverlay, { opacity: fadeAnim }]}>
             <Animated.View style={[styles.thankYouCard, { transform: [{ scale: scaleAnim }] }]}>
                 <Image 
-                    source={require('../../assets/thnakyou_student.png')} 
+                    source={require('../../assets/thnakyou-student.png')} 
                     style={styles.thanksImage}
                     resizeMode="contain"
                 />

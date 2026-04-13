@@ -12,7 +12,7 @@ const { width } = Dimensions.get('window');
 
 // Bubbly Pastel Theme Colors
 const theme = {
-  bg: '#F8F5FF', 
+  bg: '#F8F5FF',
   card: '#EFE7FE',
   buttonDark: '#1A1820',
   textMain: '#2D2A3B',
@@ -45,7 +45,7 @@ export default function AttendanceScreen() {
       const coursesRef = ref(db, 'courses');
       const snapshot = await get(coursesRef);
       const uniqueModules = new Set<string>();
-      
+
       if (snapshot.exists()) {
         snapshot.forEach((childSnapshot) => {
           const data = childSnapshot.val();
@@ -73,10 +73,10 @@ export default function AttendanceScreen() {
   const addAbsence = async (courseName: string) => {
     const current = absences[courseName] || 0;
     if (current >= TOTAL_SEMESTER_CLASSES) return;
-    
+
     const newMissed = current + 1;
     updateAbsence(courseName, newMissed);
-    
+
     const attended = TOTAL_SEMESTER_CLASSES - newMissed;
     if ((attended / TOTAL_SEMESTER_CLASSES) < 0.8) {
       showAlert({
@@ -113,20 +113,20 @@ export default function AttendanceScreen() {
         <View style={styles.cardHeader}>
           <Text style={styles.courseName}>{item}</Text>
           <View style={styles.controlRow}>
-            <TouchableOpacity 
-              style={[styles.smallBtn, { opacity: missed <= 0 ? 0.3 : 1 }]} 
+            <TouchableOpacity
+              style={[styles.smallBtn, { opacity: missed <= 0 ? 0.3 : 1 }]}
               onPress={() => removeAbsence(item)}
               disabled={missed <= 0}
             >
               <MaterialCommunityIcons name="minus" size={18} color={theme.textMain} />
             </TouchableOpacity>
-            
+
             <View style={styles.missedCounter}>
               <Text style={styles.missedText}>{missed}</Text>
             </View>
 
-            <TouchableOpacity 
-              style={[styles.smallBtn, { opacity: missed >= TOTAL_SEMESTER_CLASSES ? 0.3 : 1 }]} 
+            <TouchableOpacity
+              style={[styles.smallBtn, { opacity: missed >= TOTAL_SEMESTER_CLASSES ? 0.3 : 1 }]}
               onPress={() => addAbsence(item)}
               disabled={missed >= TOTAL_SEMESTER_CLASSES}
             >
@@ -161,7 +161,7 @@ export default function AttendanceScreen() {
   const isAnyDanger = courses.some(c => (absences[c] || 0) === 3);
 
   const renderHeader = () => {
-    let source = require('../../assets/student_celebrating.png');
+    let source = require('../../assets/student-celebrating.png');
     let title = `Congrats, ${firstName}!`;
     let subtitle = "Keep up the excellent attendance!";
     let badge = "You're on a roll!";
@@ -170,7 +170,7 @@ export default function AttendanceScreen() {
     let badgeBorder = false;
 
     if (isAnyIneligible) {
-      source = require('../../assets/sad_student.png');
+      source = require('../../assets/sad-student.png');
       title = `Oh No, ${firstName}!`;
       subtitle = "You are currently ineligible for some exams.";
       badge = "Status Critical";
@@ -178,7 +178,7 @@ export default function AttendanceScreen() {
       iconColor = theme.danger;
       badgeBorder = true;
     } else if (isAnyDanger) {
-      source = require('../../assets/danger_zone_student.png');
+      source = require('../../assets/danger-zone-student.png');
       title = `Danger Zone, ${firstName}!`;
       subtitle = "One more absence and you'll be ineligible.";
       badge = "Danger Zone";
@@ -190,13 +190,13 @@ export default function AttendanceScreen() {
     return (
       <View>
         <View style={styles.header}>
-           <View style={styles.headerTitleRow}>
-               <MaterialCommunityIcons name="calendar-check-outline" size={24} color={theme.textMain} />
-              <Text style={styles.headerText}>Eligibility Tracker</Text>
-           </View>
-           <TouchableOpacity style={styles.notifBtn} onPress={() => showAlert({ title: 'System Healthy', message: 'Attendance data is synced locally.' })}>
-               <MaterialCommunityIcons name="shield-check-outline" size={24} color={theme.textMain} />
-           </TouchableOpacity>
+          <View style={styles.headerTitleRow}>
+            <MaterialCommunityIcons name="calendar-check-outline" size={24} color={theme.textMain} />
+            <Text style={styles.headerText}>Eligibility Tracker</Text>
+          </View>
+          <TouchableOpacity style={styles.notifBtn} onPress={() => showAlert({ title: 'System Healthy', message: 'Attendance data is synced locally.' })}>
+            <MaterialCommunityIcons name="shield-check-outline" size={24} color={theme.textMain} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.imageContainer}>

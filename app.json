@@ -2,7 +2,7 @@
   "expo": {
     "name": "ScheduleMe",
     "slug": "ScheduleMe",
-    "version": "2.1.0",
+    "version": "2.1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splashdesign.png",
       "resizeMode": "cover",
-      "backgroundColor": "#15171D"
+      "backgroundColor": "#3E315A"
     },
     "ios": {
       "supportsTablet": true
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#15171D"
+        "backgroundColor": "#3E315A"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -32,7 +32,15 @@
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-community/datetimepicker",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enablePngCrunch": false
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

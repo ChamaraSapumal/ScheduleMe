@@ -229,7 +229,7 @@ export default function LockScreen() {
           <View style={styles.topSection}>
             <View style={styles.avatarWrapper}>
               <Image
-                source={require('../../assets/student_secure_login.png')}
+                source={require('../../assets/student-secure-login.png')}
                 style={styles.avatarImage}
                 resizeMode="contain"
               />

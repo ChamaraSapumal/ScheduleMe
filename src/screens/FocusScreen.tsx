@@ -202,7 +202,7 @@ export default function FocusScreen() {
           <View style={styles.imageContainer}>
             {/* We use require without variables to satisfy the bundler */}
             <Image
-              source={require('../../assets/student_studying.png')}
+              source={require('../../assets/student-studying.png')}
               style={styles.avatarImage}
               resizeMode="contain"
             />
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 20,
+    paddingBottom: 110,
   },
   scrollHint: {
     alignItems: 'center',

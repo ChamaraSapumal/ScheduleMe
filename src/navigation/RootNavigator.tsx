@@ -3,7 +3,7 @@ import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ActivityIndicator, View, Platform } from 'react-native';
+import { ActivityIndicator, View, Platform, StyleSheet } from 'react-native';
 
 import { AuthContext } from '../context/AuthContext';
 import { useAppUpdate } from '../components/AppUpdater';
@@ -41,26 +41,25 @@ function TabNavigator() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: '#F3F4F6',
-          height: Platform.OS === 'ios' ? 70 : 55,
-          paddingBottom: Platform.OS === 'ios' ? 15 : 5,
-          paddingTop: 5,
-          elevation: 15,
+          backgroundColor: colors.primary,
+          borderTopWidth: 0,
+          height: Platform.OS === 'ios' ? 85 : 70,
+          paddingBottom: Platform.OS === 'ios' ? 30 : 10,
+          paddingTop: 10,
+          elevation: 20,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: -5 },
-          shadowOpacity: 0.1,
-          shadowRadius: 10,
+          shadowOffset: { width: 0, height: -10 },
+          shadowOpacity: 0.2,
+          shadowRadius: 15,
         },
         tabBarShowLabel: true,
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '700',
-          marginTop: 2,
+          fontSize: 10,
+          fontWeight: '800',
+          marginTop: 5,
         },
-        tabBarActiveTintColor: '#1A1820',
-        tabBarInactiveTintColor: '#A0A3AE',
+        tabBarActiveTintColor: '#FFFFFF',
+        tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.4)',
         tabBarIcon: ({ color, focused }) => {
           let iconName: any = 'help-circle-outline';
 
@@ -77,14 +76,15 @@ function TabNavigator() {
           }
 
           return (
-            <View>
+            <View style={styles.iconContainer}>
+              {focused && <View style={styles.activePill} />}
               <MaterialCommunityIcons 
                 name={iconName} 
-                size={26} 
+                size={24} 
                 color={color} 
               />
               {route.name === 'Tools' && updateAvailable && (
-                  <View style={{ position: 'absolute', top: -2, right: -2, width: 10, height: 10, borderRadius: 5, backgroundColor: '#EF4444', borderWidth: 1.5, borderColor: '#FFFFFF' }} />
+                  <View style={styles.updateBadge} />
               )}
             </View>
           );
@@ -101,6 +101,33 @@ function TabNavigator() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 60,
+    height: 32,
+  },
+  activePill: {
+    position: 'absolute',
+    width: 45,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  updateBadge: {
+    position: 'absolute',
+    top: -2,
+    right: 12,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  }
+});
 
 export default function RootNavigator() {
   const { user, loading, isUnlocked, hasSeenOnboarding } = useContext(AuthContext);

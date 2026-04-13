@@ -185,7 +185,7 @@ export default function AgendaScreen({ navigation }: any) {
           </ScrollView>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingBottom: 110 }]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Daily Schedule</Text>
             <Text style={styles.courseCount}>{courses.length} Classes</Text>
@@ -196,7 +196,7 @@ export default function AgendaScreen({ navigation }: any) {
           ) : courses.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Image 
-                source={require('../../assets/student_celebrating.png')} 
+                source={require('../../assets/student-celebrating.png')} 
                 style={styles.emptyImage}
                 resizeMode="contain"
               />

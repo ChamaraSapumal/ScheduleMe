@@ -179,7 +179,7 @@ export default function InAppTour() {
           <View style={styles.card}>
              <View style={styles.charContainer}>
                 <Image 
-                  source={require('../../assets/in_app_tour.png')} 
+                  source={require('../../assets/in-app-tour.png')} 
                   style={styles.charImage} 
                   resizeMode="contain"
                 />

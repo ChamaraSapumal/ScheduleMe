@@ -157,7 +157,7 @@ export default function WordListScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
         {/* Draft Deck Input Card */}
         <View style={styles.inputCard}>
           <View style={styles.inputHeader}>
@@ -221,7 +221,7 @@ export default function WordListScreen() {
         ) : words.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Image
-              source={require('../../assets/finding_words.png')}
+              source={require('../../assets/student-studying.png')}
               style={styles.emptyImage}
               resizeMode="contain"
             />

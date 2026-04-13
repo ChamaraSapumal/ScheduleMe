@@ -8,11 +8,9 @@ import { colors, spacing } from '../theme';
 import TodosScreen from './TodosScreen';
 import DreamsScreen from './DreamsScreen';
 import EmergencyNotesScreen from './EmergencyNotesScreen';
-import SpaceExplorerScreen from './SpaceExplorerScreen';
 import ProfileScreen from './ProfileScreen';
 import AttendanceScreen from './AttendanceScreen';
 import AddCourseScreen from './AddCourseScreen';
-import DailyKnowledgeScreen from './DailyKnowledgeScreen';
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -55,8 +53,6 @@ export default function SelfDevHubScreen() {
         <Tab.Screen name="To-Dos" component={TodosScreen} />
         <Tab.Screen name="Dreams" component={DreamsScreen} />
         <Tab.Screen name="My profile" component={ProfileScreen} />
-        <Tab.Screen name="Astro" component={SpaceExplorerScreen} />
-        <Tab.Screen name="Knowledge" component={DailyKnowledgeScreen} />
       </Tab.Navigator>
     </SafeAreaView>
   );
