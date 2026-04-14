@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ref, get, remove } from 'firebase/database';
 import { db } from '../config/firebase';
+import { syncWrite, fetchWithCache } from '../utils/SyncManager';
 import { AuthContext } from '../context/AuthContext';
 import { useCustomAlert } from '../context/AlertContext';
 import { colors, spacing } from '../theme';
@@ -62,18 +63,16 @@ export default function AgendaScreen({ navigation }: any) {
       const queryDateStr = formatDateString(selectedDate);
       const queryDayOfWeek = getDayOfWeekName(selectedDate);
 
-      const coursesRef = ref(db, 'courses');
-      const snapshot = await get(coursesRef);
+      const data = await fetchWithCache('courses', user.uid);
       const fetchedCourses: CourseSession[] = [];
       
-      if (snapshot.exists()) {
-        snapshot.forEach((childSnapshot) => {
-          const data = childSnapshot.val();
-          if (data.userId === user.uid) {
-            if (data.isRecurring && data.dayOfWeek === queryDayOfWeek) {
-              fetchedCourses.push({ id: childSnapshot.key, ...data } as CourseSession);
-            } else if (!data.isRecurring && data.date === queryDateStr) {
-              fetchedCourses.push({ id: childSnapshot.key, ...data } as CourseSession);
+      if (data) {
+        Object.entries(data).forEach(([key, val]: any) => {
+          if (val.userId === user.uid) {
+            if (val.isRecurring && val.dayOfWeek === queryDayOfWeek) {
+              fetchedCourses.push({ id: key, ...val } as CourseSession);
+            } else if (!val.isRecurring && val.date === queryDateStr) {
+              fetchedCourses.push({ id: key, ...val } as CourseSession);
             }
           }
         });
@@ -103,7 +102,7 @@ export default function AgendaScreen({ navigation }: any) {
       confirmText: 'Delete',
       onConfirm: async () => {
         try {
-          await remove(ref(db, `courses/${id}`));
+          await syncWrite('remove', `courses/${id}`, user.uid);
           fetchCourses();
         } catch (err) {
           showAlert({ title: 'Error', message: 'Failed to delete class.' });

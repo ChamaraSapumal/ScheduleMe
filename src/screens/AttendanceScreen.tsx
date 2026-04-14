@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ref, get, set } from 'firebase/database';
 import { db } from '../config/firebase';
+import { syncWrite, fetchWithCache } from '../utils/SyncManager';
 import { AuthContext } from '../context/AuthContext';
 import { useIsFocused } from '@react-navigation/native';
 import { useCustomAlert } from '../context/AlertContext';
@@ -43,19 +44,17 @@ export default function AttendanceScreen() {
   const loadData = async () => {
     if (!user) return;
     try {
-      const coursesRef = ref(db, 'courses');
-      const snapshot = await get(coursesRef);
+      const data = await fetchWithCache('courses', user.uid);
       const uniqueModules = new Set<string>();
       const extraCounter: Record<string, number> = {};
 
-      if (snapshot.exists()) {
-        snapshot.forEach((childSnapshot) => {
-          const data = childSnapshot.val();
-          if (data.userId === user.uid && data.moduleName) {
-            uniqueModules.add(data.moduleName);
+      if (data) {
+        Object.values(data).forEach((val: any) => {
+          if (val.userId === user.uid && val.moduleName) {
+            uniqueModules.add(val.moduleName);
             // Count extra, non-recurring lectures
-            if (!data.isRecurring) {
-              extraCounter[data.moduleName] = (extraCounter[data.moduleName] || 0) + 1;
+            if (!val.isRecurring) {
+              extraCounter[val.moduleName] = (extraCounter[val.moduleName] || 0) + 1;
             }
           }
         });
@@ -65,24 +64,16 @@ export default function AttendanceScreen() {
       const courseList = Array.from(uniqueModules);
       setCourses(courseList);
 
-      // Try fetching from Firebase first
-      const attendanceRef = ref(db, `users/${user.uid}/attendance`);
-      const attendanceSnap = await get(attendanceRef);
+      // Try fetching from Firebase or Cache
+      const attendanceData = await fetchWithCache(`users/${user.uid}/attendance`, user.uid);
       
       let fetchedAbsences: Record<string, number> = {};
-      if (attendanceSnap.exists()) {
-        fetchedAbsences = attendanceSnap.val();
+      
+      if (attendanceData) {
+        fetchedAbsences = attendanceData;
       } else {
-        // Fallback to AsyncStorage or initialize
-        const storedAbsences = await AsyncStorage.getItem(`attendance_${user.uid}`);
-        if (storedAbsences) {
-          fetchedAbsences = JSON.parse(storedAbsences);
-          // Sync local to Firebase since Firebase had nothing
-          await set(attendanceRef, fetchedAbsences);
-        } else {
-          courseList.forEach(c => fetchedAbsences[c] = 0);
-          await set(attendanceRef, fetchedAbsences);
-        }
+        courseList.forEach(c => fetchedAbsences[c] = 0);
+        await syncWrite('set', `users/${user.uid}/attendance`, user.uid, fetchedAbsences);
       }
       
       setAbsences(fetchedAbsences);
@@ -119,9 +110,8 @@ export default function AttendanceScreen() {
     const updated = { ...absences, [courseName]: count };
     setAbsences(updated);
     if (user) {
+      await syncWrite('set', `users/${user.uid}/attendance`, user.uid, updated);
       await AsyncStorage.setItem(`attendance_${user.uid}`, JSON.stringify(updated));
-      const attendanceRef = ref(db, `users/${user.uid}/attendance`);
-      await set(attendanceRef, updated);
     }
   };
 

@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Animated, PanResponder, Dimensions, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Animated, PanResponder, Dimensions, TextInput, KeyboardAvoidingView, Platform, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
@@ -41,6 +41,8 @@ export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [offlineSyncEnabled, setOfflineSyncEnabled] = useState(false);
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
 
   const SNAP_BOTTOM = 0; 
   const SNAP_TOP = -screenHeight * 0.45; 
@@ -106,9 +108,27 @@ export default function ProfileScreen() {
         }
         if (data.phone) setPhone(data.phone);
       }
+      
+      const syncPref = await AsyncStorage.getItem('@offline_sync_enabled');
+      setOfflineSyncEnabled(syncPref === 'true');
     } catch (error) {
       console.log('Error loading profile:', error);
     }
+  };
+
+  const toggleOfflineSync = async () => {
+    if (offlineSyncEnabled) {
+      setOfflineSyncEnabled(false);
+      await AsyncStorage.setItem('@offline_sync_enabled', 'false');
+    } else {
+      setShowOfflineModal(true);
+    }
+  };
+
+  const confirmEnableOffline = async () => {
+    setOfflineSyncEnabled(true);
+    await AsyncStorage.setItem('@offline_sync_enabled', 'true');
+    setShowOfflineModal(false);
   };
 
   const pickImage = async () => {
@@ -134,6 +154,10 @@ export default function ProfileScreen() {
         await FileSystem.copyAsync({ from: sourceUri, to: destUri });
 
         if (user) {
+          const oldImage = await AsyncStorage.getItem(`profileImage_${user.uid}`);
+          if (oldImage && oldImage !== destUri) {
+            try { await FileSystem.deleteAsync(oldImage, { idempotent: true }); } catch (e) {}
+          }
           await AsyncStorage.setItem(`profileImage_${user.uid}`, destUri);
         }
         setPhotoUri(destUri);
@@ -323,6 +347,19 @@ export default function ProfileScreen() {
 
             <View style={styles.divider} />
 
+            <TouchableOpacity style={styles.cardItem} onPress={toggleOfflineSync} activeOpacity={0.7}>
+              <View style={[styles.iconContainer, { backgroundColor: offlineSyncEnabled ? 'rgba(210, 185, 255, 0.2)' : '#F5F5F5' }]}>
+                <MaterialCommunityIcons name={offlineSyncEnabled ? "cloud-check" : "cloud-off-outline"} size={22} color={offlineSyncEnabled ? profileTheme.primary : "#9E9E9E"} />
+              </View>
+              <View style={styles.itemText}>
+                <Text style={styles.itemLabel}>Offline Mode</Text>
+                <Text style={styles.itemValue}>{offlineSyncEnabled ? 'Enabled' : 'Disabled'}</Text>
+              </View>
+              <MaterialCommunityIcons name={offlineSyncEnabled ? "toggle-switch" : "toggle-switch-off-outline"} size={32} color={offlineSyncEnabled ? profileTheme.accent : profileTheme.textSecondary} />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
             <View style={styles.cardItem}>
               <View style={[styles.iconContainer, { backgroundColor: '#FFF0F0' }]}>
                 <MaterialCommunityIcons name="cloud-check-outline" size={22} color="#FF6B6B" />
@@ -357,6 +394,40 @@ export default function ProfileScreen() {
           </View>
         </ScrollView>
       </Animated.View>
+
+      {/* Offline Mode Modal */}
+      <Modal visible={showOfflineModal} transparent={true} animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.storageCard}>
+            <View style={styles.storageImageWrapper}>
+              <Image
+                source={require('../../assets/storage-permission.png')}
+                style={styles.storageImage}
+                resizeMode="contain"
+              />
+            </View>
+            
+            <View style={styles.storageContent}>
+              <Text style={styles.storageTitle}>OFFLINE MODE</Text>
+              <Text style={styles.storageDesc}>
+                Can we securely save your schedule directly on your phone? 
+                This allows you to view your classes without an internet connection.
+              </Text>
+              
+              <View style={styles.storageFooter}>
+                <TouchableOpacity style={styles.declineButton} onPress={() => setShowOfflineModal(false)}>
+                  <Text style={styles.declineText}>NOT NOW</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.enableButton} onPress={confirmEnableOffline}>
+                  <Text style={styles.enableText}>ENABLE MODE</Text>
+                  <MaterialCommunityIcons name="lightning-bolt" size={18} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }
@@ -626,5 +697,97 @@ const styles = StyleSheet.create({
     color: profileTheme.textSecondary,
     fontWeight: '600',
     opacity: 0.5,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  storageCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 32,
+    overflow: 'hidden',
+    shadowColor: '#3E315A',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.2,
+    shadowRadius: 25,
+    elevation: 10,
+  },
+  storageImageWrapper: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  storageImage: {
+    width: 140,
+    height: 140,
+    borderRadius: 70, // Clips the gray background into a perfect circle
+    borderWidth: 4,
+    borderColor: '#F8F5FF',
+  },
+  storageContent: {
+    padding: 25,
+    alignItems: 'center',
+  },
+  storageTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#3E315A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  storageDesc: {
+    fontSize: 14,
+    color: '#6F6B7D',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 25,
+    paddingHorizontal: 10,
+  },
+  storageFooter: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  declineButton: {
+    flex: 1,
+    backgroundColor: '#F0F0F0',
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  declineText: {
+    color: '#8F8A9E',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  enableButton: {
+    flex: 1.5,
+    flexDirection: 'row',
+    backgroundColor: '#3E315A',
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3E315A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  enableText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+    marginRight: 6,
   }
 });

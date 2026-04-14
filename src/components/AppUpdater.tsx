@@ -1,5 +1,5 @@
 import React, { useEffect, useState, createContext, useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform, Modal, Image } from 'react-native';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -14,6 +14,7 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
   const [downloadUrl, setDownloadUrl] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     checkVersion();
@@ -113,6 +114,9 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
           flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
           type: 'application/vnd.android.package-archive',
         });
+        
+        // Show the success modal after launching the installer
+        setShowSuccessModal(true);
       }
     } catch (error: any) {
       console.error('Update Download failed:', error);
@@ -128,6 +132,32 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
   return (
     <UpdateContext.Provider value={{ updateAvailable, latestVersion, downloadUrl, isDownloading, downloadProgress, handleDownloadAndInstall, cancelDownload, checkVersion }}>
       {children}
+      
+      <Modal visible={showSuccessModal} transparent={true} animationType="slide">
+        <View style={styles.successModalContainer}>
+          <View style={styles.successCard}>
+            <View style={styles.imageHeader}>
+              <Image 
+                source={require('../../assets/thankyou-student.png')} 
+                style={styles.successImage} 
+                resizeMode="contain" 
+              />
+            </View>
+            <View style={styles.successContent}>
+              <Text style={styles.successTitle}>Update Ready!</Text>
+              <Text style={styles.successText}>
+                Your update has been downloaded successfully. After installation, we highly recommend clearing the App Data from settings to optimize your storage space!
+              </Text>
+              <TouchableOpacity 
+                style={styles.successButton} 
+                onPress={() => setShowSuccessModal(false)}
+              >
+                <Text style={styles.successButtonText}>Got it!</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </UpdateContext.Provider>
   );
 };
@@ -196,5 +226,65 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#000',
+  },
+  successModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 12, 27, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  successCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 32,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.3,
+    shadowRadius: 25,
+    elevation: 20,
+  },
+  imageHeader: {
+    width: '100%',
+    height: 220,
+    backgroundColor: '#F8F5FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  successImage: {
+    width: '100%',
+    height: '100%',
+  },
+  successContent: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#1A162D',
+    marginBottom: 12,
+  },
+  successText: {
+    fontSize: 15,
+    color: '#6F6B7D',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  successButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 16,
+    width: '100%',
+    alignItems: 'center',
+  },
+  successButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '800',
   }
 });

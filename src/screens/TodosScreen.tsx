@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Activi
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ref, push, set, remove, get } from 'firebase/database';
 import { db } from '../config/firebase';
+import { syncWrite, fetchWithCache } from '../utils/SyncManager';
 import { AuthContext } from '../context/AuthContext';
 import { colors, spacing } from '../theme';
 
@@ -26,12 +27,11 @@ export default function TodosScreen() {
     if (!user) return;
     setLoading(true);
     try {
-      const todosRef = ref(db, `users/${user.uid}/todos`);
-      const todosSnap = await get(todosRef);
+      const data = await fetchWithCache(`users/${user.uid}/todos`, user.uid);
       const fetchedTodos: ListItem[] = [];
-      if (todosSnap.exists()) {
-        todosSnap.forEach(child => {
-          fetchedTodos.push({ id: child.key, ...child.val() });
+      if (data) {
+        Object.entries(data).forEach(([key, val]: any) => {
+          fetchedTodos.push({ id: key, ...val });
         });
       }
       setTodos(fetchedTodos);
@@ -46,8 +46,8 @@ export default function TodosScreen() {
     if (!user || !newTodo.trim()) return;
     try {
       const todosRef = ref(db, `users/${user.uid}/todos`);
-      const newRef = push(todosRef);
-      await set(newRef, { text: newTodo.trim(), completed: false });
+      const newId = push(todosRef).key;
+      await syncWrite('set', `users/${user.uid}/todos/${newId}`, user.uid, { text: newTodo.trim(), completed: false });
       setNewTodo('');
       fetchTodos();
     } catch (e) {
@@ -58,8 +58,7 @@ export default function TodosScreen() {
   const handleToggleTodo = async (item: ListItem) => {
     if (!user) return;
     try {
-      const itemRef = ref(db, `users/${user.uid}/todos/${item.id}`);
-      await set(itemRef, { ...item, completed: !item.completed });
+      await syncWrite('set', `users/${user.uid}/todos/${item.id}`, user.uid, { ...item, completed: !item.completed });
       fetchTodos();
     } catch (e) {
       console.error(e);
@@ -69,7 +68,7 @@ export default function TodosScreen() {
   const handleDeleteTodo = async (id: string) => {
     if (!user) return;
     try {
-      await remove(ref(db, `users/${user.uid}/todos/${id}`));
+      await syncWrite('remove', `users/${user.uid}/todos/${id}`, user.uid);
       fetchTodos();
     } catch (e) {
       console.error(e);

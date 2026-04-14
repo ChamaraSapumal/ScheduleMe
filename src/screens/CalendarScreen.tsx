@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { ref, get, remove } from 'firebase/database';
 import { db } from '../config/firebase';
+import { syncWrite, fetchWithCache } from '../utils/SyncManager';
 import { AuthContext } from '../context/AuthContext';
 import { useCustomAlert } from '../context/AlertContext';
 import { colors, spacing } from '../theme';
@@ -35,8 +36,7 @@ export default function CalendarScreen({ navigation }: any) {
     setLoading(true);
     try {
       const selectedDayOfWeek = getDayOfWeekName(selectedDate);
-      const coursesRef = ref(db, 'courses');
-      const snapshot = await get(coursesRef);
+      const data = await fetchWithCache('courses', user.uid);
       
       const fetchedCourses: CourseSession[] = [];
       let newMarked: any = {};
@@ -51,30 +51,29 @@ export default function CalendarScreen({ navigation }: any) {
         });
       }
       
-      if (snapshot.exists()) {
-        snapshot.forEach((childSnapshot) => {
-          const data = childSnapshot.val();
-          if (data.userId === user.uid) {
+      if (data) {
+        Object.entries(data).forEach(([key, val]: any) => {
+          if (val.userId === user.uid) {
             
-            if (data.isRecurring && data.dayOfWeek === selectedDayOfWeek) {
-              fetchedCourses.push({ id: childSnapshot.key, ...data } as CourseSession);
-            } else if (!data.isRecurring && data.date === selectedDate) {
-              fetchedCourses.push({ id: childSnapshot.key, ...data } as CourseSession);
+            if (val.isRecurring && val.dayOfWeek === selectedDayOfWeek) {
+              fetchedCourses.push({ id: key, ...val } as CourseSession);
+            } else if (!val.isRecurring && val.date === selectedDate) {
+              fetchedCourses.push({ id: key, ...val } as CourseSession);
             }
             
-            if (data.isRecurring) {
+            if (val.isRecurring) {
               upcomingDates.forEach(ud => {
-                if (ud.dayName === data.dayOfWeek) {
+                if (ud.dayName === val.dayOfWeek) {
                   newMarked[ud.date] = { 
                     marked: true, 
-                    dotColor: data.colorIndicator || colors.secondary 
+                    dotColor: val.colorIndicator || colors.secondary 
                   };
                 }
               });
-            } else if (data.date) {
-              newMarked[data.date] = {
+            } else if (val.date) {
+              newMarked[val.date] = {
                 marked: true,
-                dotColor: data.colorIndicator || colors.secondary
+                dotColor: val.colorIndicator || colors.secondary
               };
             }
           }
@@ -136,7 +135,7 @@ export default function CalendarScreen({ navigation }: any) {
       confirmText: 'Delete',
       onConfirm: async () => {
         try {
-          await remove(ref(db, `courses/${id}`));
+          await syncWrite('remove', `courses/${id}`, user.uid);
           fetchCoursesAndMarks();
         } catch (err) {
           showAlert({ title: 'Error', message: 'Failed to delete class.' });

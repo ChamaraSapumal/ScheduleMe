@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ref, push, set, remove, get } from 'firebase/database';
 import { db } from '../config/firebase';
+import { syncWrite, fetchWithCache } from '../utils/SyncManager';
 import { AuthContext } from '../context/AuthContext';
 import { useCustomAlert } from '../context/AlertContext';
 import { colors, spacing } from '../theme';
@@ -37,12 +38,11 @@ export default function WordListScreen() {
     if (!user) return;
     setLoading(true);
     try {
-      const wordsRef = ref(db, `users/${user.uid}/words`);
-      const wordsSnap = await get(wordsRef);
+      const data = await fetchWithCache(`users/${user.uid}/words`, user.uid);
       const fetchedWords: WordItem[] = [];
-      if (wordsSnap.exists()) {
-        wordsSnap.forEach(child => {
-          fetchedWords.push({ id: child.key, ...child.val() });
+      if (data) {
+        Object.entries(data).forEach(([key, val]: any) => {
+          fetchedWords.push({ id: key, ...val });
         });
       }
       setWords(fetchedWords);
@@ -57,8 +57,8 @@ export default function WordListScreen() {
     if (!user || !newWord.trim()) return;
     try {
       const wordsRef = ref(db, `users/${user.uid}/words`);
-      const newRef = push(wordsRef);
-      await set(newRef, {
+      const newId = push(wordsRef).key;
+      await syncWrite('set', `users/${user.uid}/words/${newId}`, user.uid, {
         word: newWord.trim(),
         definition: newDefinition.trim(),
         timestamp: Date.now()
@@ -80,7 +80,7 @@ export default function WordListScreen() {
       confirmText: 'Delete',
       onConfirm: async () => {
         try {
-          await remove(ref(db, `users/${user.uid}/words/${id}`));
+          await syncWrite('remove', `users/${user.uid}/words/${id}`, user.uid);
           fetchWords();
         } catch (e) {
           console.error(e);
@@ -221,7 +221,7 @@ export default function WordListScreen() {
         ) : words.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Image
-              source={require('../../assets/student-studying.png')}
+              source={require('../../assets/finding-words.png')}
               style={styles.emptyImage}
               resizeMode="contain"
             />
@@ -427,8 +427,8 @@ const styles = StyleSheet.create({
   deleteBtn: {
     padding: 10,
   },
-  emptyContainer: { 
-    alignItems: 'center', 
+  emptyContainer: {
+    alignItems: 'center',
     marginTop: 30,
     backgroundColor: '#FFFFFF', // Matching image background
     borderRadius: 40,

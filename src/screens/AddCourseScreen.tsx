@@ -6,6 +6,7 @@ import { Calendar } from 'react-native-calendars';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ref, push, set, update, get } from 'firebase/database';
 import { db } from '../config/firebase';
+import { syncWrite, fetchWithCache } from '../utils/SyncManager';
 import { AuthContext } from '../context/AuthContext';
 import { useCustomAlert } from '../context/AlertContext';
 import { colors, spacing } from '../theme';
@@ -35,13 +36,12 @@ export default function AddCourseScreen({ navigation, route }: any) {
 
   useEffect(() => {
     if (user) {
-      get(ref(db, 'courses')).then(snap => {
+      fetchWithCache('courses', user.uid).then(data => {
         const mods = new Set<string>();
-        if (snap.exists()) {
-          snap.forEach(child => {
-             const data = child.val();
-             if (data.userId === user.uid && data.moduleName) {
-               mods.add(data.moduleName);
+        if (data) {
+          Object.values(data).forEach((val: any) => {
+             if (val.userId === user.uid && val.moduleName) {
+               mods.add(val.moduleName);
              }
           });
         }
@@ -156,12 +156,12 @@ export default function AddCourseScreen({ navigation, route }: any) {
       }
 
       if (editingCourse?.id) {
-        await update(ref(db, `courses/${editingCourse.id}`), courseData);
+        await syncWrite('update', `courses/${editingCourse.id}`, user.uid, courseData);
         showAlert({ title: 'Success', message: 'Class updated successfully!' });
       } else {
         const coursesRef = ref(db, 'courses');
-        const newCourseRef = push(coursesRef);
-        await set(newCourseRef, courseData);
+        const newId = push(coursesRef).key;
+        await syncWrite('set', `courses/${newId}`, user.uid, courseData);
         showAlert({ title: 'Success', message: 'Class scheduled successfully!' });
       }
 

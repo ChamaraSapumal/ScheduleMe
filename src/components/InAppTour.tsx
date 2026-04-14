@@ -1,6 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, Easing, Image } from 'react-native';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContext } from '../context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing } from '../theme';
@@ -65,6 +66,14 @@ const TOUR_STEPS = [
     description: 'Set your name, update your photo, and manage your security vault settings here.',
     position: { top: height * 0.25, alignSelf: 'center' },
     arrowDirection: 'none',
+  },
+  {
+    target: 'Agenda',
+    title: 'OFFLINE SCHEDULE',
+    description: 'Can we securely save your schedule directly on your phone? This allows you to view your classes without an internet connection. We will auto-sync with the cloud when you connect.',
+    position: { top: height * 0.25, alignSelf: 'center' },
+    arrowDirection: 'none',
+    isStoragePrompt: true,
   }
 ];
 
@@ -139,9 +148,22 @@ export default function InAppTour() {
     if (currentStep < TOUR_STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
+      // Not storage prompt, should never hit this ideally but fallback
       await completeOnboarding();
       navigation.navigate('MainTabs', { screen: 'Agenda' });
     }
+  };
+
+  const handleAgreeStorage = async () => {
+    await AsyncStorage.setItem('@offline_sync_enabled', 'true');
+    await completeOnboarding();
+    navigation.navigate('MainTabs', { screen: 'Tools', params: { screen: 'My profile' } });
+  };
+
+  const handleDeclineStorage = async () => {
+    await AsyncStorage.setItem('@offline_sync_enabled', 'false');
+    await completeOnboarding();
+    navigation.navigate('MainTabs', { screen: 'Tools', params: { screen: 'My profile' } });
   };
 
   return (
@@ -161,34 +183,64 @@ export default function InAppTour() {
           <Animated.View style={[styles.arrowUp, { transform: [{ scale: pulseAnim }] }]} />
         )}
 
-        <View style={styles.card}>
-          <View style={styles.charContainer}>
-            <Image
-              source={require('../../assets/in-app-tour.png')}
-              style={styles.charImage}
-              resizeMode="contain"
-            />
-          </View>
+        {(step as any).isStoragePrompt ? (
+          <View style={[styles.card, styles.storageCard]}>
+            <View style={styles.storageImageWrapper}>
+              <Image
+                source={require('../../assets/storage-permission.png')}
+                style={styles.storageImage}
+                resizeMode="contain"
+              />
+            </View>
 
-          <View style={styles.cardHeader}>
-            <Text style={styles.title}>{step.title}</Text>
-          </View>
-
-          <Text style={styles.description}>{step.description}</Text>
-
-          <View style={styles.footer}>
-            <Text style={styles.stepCounter}>{currentStep + 1} / {TOUR_STEPS.length}</Text>
-
-            <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-              <Text style={styles.nextText}>
-                {currentStep === TOUR_STEPS.length - 1 ? "FINISH" : "NEXT"}
+            <View style={styles.storageContent}>
+              <Text style={styles.storageTitle}>OFFLINE MODE</Text>
+              <Text style={styles.storageDesc}>
+                Can we securely save your schedule directly on your phone?
+                This allows you to view your classes without an internet connection.
               </Text>
-              {currentStep !== TOUR_STEPS.length - 1 && (
-                <MaterialCommunityIcons name="arrow-right" size={18} color="#FFF" />
-              )}
-            </TouchableOpacity>
+
+              <View style={styles.storageFooter}>
+                <TouchableOpacity style={styles.declineButton} onPress={handleDeclineStorage}>
+                  <Text style={styles.declineText}>NOT NOW</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.enableButton} onPress={handleAgreeStorage}>
+                  <Text style={styles.enableText}>ENABLE MODE</Text>
+                  <MaterialCommunityIcons name="lightning-bolt" size={18} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.card}>
+            <View style={styles.charContainer}>
+              <Image
+                source={require('../../assets/in-app-tour.png')}
+                style={styles.charImage}
+                resizeMode="contain"
+              />
+            </View>
+
+            <View style={styles.cardHeader}>
+              <Text style={styles.title}>{step.title}</Text>
+            </View>
+
+            <Text style={styles.description}>{step.description}</Text>
+
+            <View style={styles.footer}>
+              <Text style={styles.stepCounter}>{currentStep + 1} / {TOUR_STEPS.length - 1}</Text>
+
+              <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+                <Text style={styles.nextText}>
+                  {currentStep === TOUR_STEPS.length - 2 ? "FINISH" : "NEXT"}
+                </Text>
+                {currentStep !== TOUR_STEPS.length - 2 && (
+                  <MaterialCommunityIcons name="arrow-right" size={18} color="#FFF" />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {step.arrowDirection === 'down' && (
           <Animated.View style={[styles.arrowDown, { transform: [{ scale: pulseAnim }] }]} />
@@ -311,5 +363,84 @@ const styles = StyleSheet.create({
     borderTopColor: '#FFFFFF',
     marginTop: -1,
     alignSelf: 'center',
+  },
+  storageCard: {
+    padding: 0,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+  },
+  storageImageWrapper: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  storageImage: {
+    width: 140,
+    height: 140,
+    borderRadius: 70, // Clips the gray background into a perfect circle
+    borderWidth: 4,
+    borderColor: '#F8F5FF',
+  },
+  storageContent: {
+    padding: 25,
+    alignItems: 'center',
+  },
+  storageTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#3E315A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  storageDesc: {
+    fontSize: 14,
+    color: '#6F6B7D',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 25,
+    paddingHorizontal: 10,
+  },
+  storageFooter: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  declineButton: {
+    flex: 1,
+    backgroundColor: '#F0F0F0',
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  declineText: {
+    color: '#8F8A9E',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  enableButton: {
+    flex: 1.5,
+    flexDirection: 'row',
+    backgroundColor: '#3E315A',
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3E315A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  enableText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+    marginRight: 6,
   }
 });

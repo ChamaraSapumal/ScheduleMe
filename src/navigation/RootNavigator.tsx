@@ -144,6 +144,7 @@ const styles = StyleSheet.create({
 export default function RootNavigator() {
   const { user, loading, isUnlocked, hasSeenOnboarding } = useContext(AuthContext);
   const { isRunning } = useTimer();
+  const { isDownloading } = useAppUpdate();
   const navigationRef = useNavigationContainerRef();
 
   const [currentRoute, setCurrentRoute] = React.useState<string | null>(null);
@@ -237,7 +238,7 @@ export default function RootNavigator() {
     }
   };
 
-  const shouldShift = isRunning && 
+  const shouldShift = (isRunning || isDownloading) && 
     user && 
     isUnlocked &&
     currentRoute !== 'Focus';

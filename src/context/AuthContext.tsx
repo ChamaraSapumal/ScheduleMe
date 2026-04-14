@@ -4,6 +4,7 @@ import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/a
 import { auth, db } from '../config/firebase';
 import { ref, get } from 'firebase/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { resolveOfflineQueue } from '../utils/SyncManager';
 
 interface AuthContextType {
   user: User | null;
@@ -103,6 +104,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(currentUser);
       
       if (currentUser) {
+        // Synchronize any offline cache that was waiting
+        resolveOfflineQueue();
+
         // Check user-specific onboarding status
         try {
           const val = await AsyncStorage.getItem(`@onboarding_complete_${currentUser.uid}`);
@@ -116,16 +120,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const cachedName = await AsyncStorage.getItem(`cached_name_${currentUser.uid}`);
           if (cachedName) setUserName(cachedName);
           
-          // 2. Fetch fresh name from Firebase
+          // 2. Fetch fresh name from Firebase without blocking the app startup
           const profileRef = ref(db, `users/${currentUser.uid}/profile`);
-          const snap = await get(profileRef);
-          if (snap.exists()) {
-            const data = snap.val();
-            if (data.name) {
-              setUserName(data.name);
-              await AsyncStorage.setItem(`cached_name_${currentUser.uid}`, data.name);
+          get(profileRef).then(async (snap) => {
+            if (snap.exists()) {
+              const data = snap.val();
+              if (data.name) {
+                setUserName(data.name);
+                await AsyncStorage.setItem(`cached_name_${currentUser.uid}`, data.name);
+              }
             }
-          }
+          }).catch(err => {
+             console.log('[AuthContext] Profile background fetch handled:', err.message);
+          });
         } catch (err) {
           console.warn('Error loading user profile data:', err);
         }

@@ -64,7 +64,7 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
     currentRoute !== 'Focus';
 
   const isAlertActive = !!activeAlert;
-  const isIslandVisible = isTimerModeVisible || isAlertActive || isDownloading;
+  const isIslandVisible = (isTimerModeVisible || isAlertActive || isDownloading) && currentRoute !== 'Lock';
 
   const widthAnim = useRef(new Animated.Value(150)).current;
   const heightAnim = useRef(new Animated.Value(32)).current;
@@ -274,7 +274,7 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
 
           {islandMode === 'ALERT' && (
             !isExpanded ? (
-                <View style={styles.pillContent}>
+                <View style={[styles.pillContent, { justifyContent: 'center' }]}>
                   <MaterialCommunityIcons name={getAlertIcon() as any} size={24} color={getAlertColor()} />
                   <Text style={styles.alertPillText} numberOfLines={1}>{activeAlert?.title}</Text>
                 </View>
@@ -396,8 +396,10 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '800',
-    flex: 1,
-    marginLeft: 12,
+    flex: 0,
+    marginLeft: 8,
+    marginRight: 8,
+    textAlign: 'center',
     backgroundColor: 'transparent',
   },
   expandedContent: {
@@ -441,11 +443,13 @@ const styles = StyleSheet.create({
   expandedAlertContent: {
     width: '100%',
     paddingVertical: 10,
+    alignItems: 'center',
     backgroundColor: 'transparent',
   },
   alertHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 8,
     backgroundColor: 'transparent',
   },
@@ -461,6 +465,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     lineHeight: 20,
+    textAlign: 'center',
     backgroundColor: 'transparent',
     marginBottom: 15,
   },

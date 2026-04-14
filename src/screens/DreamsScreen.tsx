@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Activi
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ref, push, set, remove, get } from 'firebase/database';
 import { db } from '../config/firebase';
+import { syncWrite, fetchWithCache } from '../utils/SyncManager';
 import { AuthContext } from '../context/AuthContext';
 import { colors, spacing } from '../theme';
 
@@ -25,12 +26,11 @@ export default function DreamsScreen() {
     if (!user) return;
     setLoading(true);
     try {
-      const dreamsRef = ref(db, `users/${user.uid}/dreams`);
-      const dreamsSnap = await get(dreamsRef);
+      const data = await fetchWithCache(`users/${user.uid}/dreams`, user.uid);
       const fetchedDreams: ListItem[] = [];
-      if (dreamsSnap.exists()) {
-        dreamsSnap.forEach(child => {
-          fetchedDreams.push({ id: child.key, ...child.val() });
+      if (data) {
+        Object.entries(data).forEach(([key, val]: any) => {
+          fetchedDreams.push({ id: key, ...val });
         });
       }
       setDreams(fetchedDreams);
@@ -45,8 +45,8 @@ export default function DreamsScreen() {
     if (!user || !newDream.trim()) return;
     try {
       const dreamsRef = ref(db, `users/${user.uid}/dreams`);
-      const newRef = push(dreamsRef);
-      await set(newRef, { text: newDream.trim() });
+      const newId = push(dreamsRef).key;
+      await syncWrite('set', `users/${user.uid}/dreams/${newId}`, user.uid, { text: newDream.trim() });
       setNewDream('');
       fetchDreams();
     } catch (e) {
@@ -57,7 +57,7 @@ export default function DreamsScreen() {
   const handleDeleteDream = async (id: string) => {
     if (!user) return;
     try {
-      await remove(ref(db, `users/${user.uid}/dreams/${id}`));
+      await syncWrite('remove', `users/${user.uid}/dreams/${id}`, user.uid);
       fetchDreams();
     } catch (e) {
       console.error(e);

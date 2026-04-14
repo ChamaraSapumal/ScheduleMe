@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Activi
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ref, push, set, remove, get } from 'firebase/database';
 import { db } from '../config/firebase';
+import { syncWrite, fetchWithCache } from '../utils/SyncManager';
 import { AuthContext } from '../context/AuthContext';
 import { colors, spacing } from '../theme';
 
@@ -26,12 +27,11 @@ export default function EmergencyNotesScreen() {
     if (!user) return;
     setLoading(true);
     try {
-      const notesRef = ref(db, `users/${user.uid}/notes`);
-      const notesSnap = await get(notesRef);
+      const data = await fetchWithCache(`users/${user.uid}/notes`, user.uid);
       const fetchedNotes: NoteItem[] = [];
-      if (notesSnap.exists()) {
-        notesSnap.forEach(child => {
-          fetchedNotes.push({ id: child.key, ...child.val() });
+      if (data) {
+        Object.entries(data).forEach(([key, val]: any) => {
+          fetchedNotes.push({ id: key, ...val });
         });
       }
       fetchedNotes.sort((a, b) => b.timestamp - a.timestamp);
@@ -47,8 +47,8 @@ export default function EmergencyNotesScreen() {
     if (!user || !newNote.trim()) return;
     try {
       const notesRef = ref(db, `users/${user.uid}/notes`);
-      const newRef = push(notesRef);
-      await set(newRef, { text: newNote.trim(), timestamp: Date.now() });
+      const newId = push(notesRef).key;
+      await syncWrite('set', `users/${user.uid}/notes/${newId}`, user.uid, { text: newNote.trim(), timestamp: Date.now() });
       setNewNote('');
       fetchNotes();
     } catch (e) {
@@ -59,7 +59,7 @@ export default function EmergencyNotesScreen() {
   const handleDeleteNote = async (id: string) => {
     if (!user) return;
     try {
-      await remove(ref(db, `users/${user.uid}/notes/${id}`));
+      await syncWrite('remove', `users/${user.uid}/notes/${id}`, user.uid);
       fetchNotes();
     } catch (e) {
       console.error(e);
