@@ -5,6 +5,7 @@ import { auth } from '../config/firebase';
 import { AuthContext } from '../context/AuthContext';
 import { useCustomAlert } from '../context/AlertContext';
 import { colors, spacing } from '../theme';
+import { sendWelcomeEmail } from '../utils/emailjsService';
 
 export default function LoginScreen() {
   const { setUnlocked, completeOnboarding, hasSeenOnboarding, resetOnboarding } = useContext(AuthContext);
@@ -28,6 +29,15 @@ export default function LoginScreen() {
         }
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await resetOnboarding(userCredential.user.uid); // Forcefully clear flag for THIS specific new user
+        
+        // Fire & Forget Welcome Email unconditionally
+        try {
+          sendWelcomeEmail(email, email.split('@')[0]);
+          console.log("Triggered welcome email.");
+        } catch (e) {
+          console.log("Email trigger failed:", e);
+        }
+        
       } else {
         await signInWithEmailAndPassword(auth, email, password);
         // They are an existing user logging in on a new device, skip the tour:

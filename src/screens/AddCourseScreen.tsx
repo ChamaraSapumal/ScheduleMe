@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { ref, push, set, update } from 'firebase/database';
+import { ref, push, set, update, get } from 'firebase/database';
 import { db } from '../config/firebase';
 import { AuthContext } from '../context/AuthContext';
 import { useCustomAlert } from '../context/AlertContext';
@@ -16,9 +16,9 @@ export default function AddCourseScreen({ navigation, route }: any) {
   
   const editingCourse = route.params?.course || null;
 
-  const [isRecurring, setIsRecurring] = useState(true);
+  const [isRecurring, setIsRecurring] = useState(route.params?.prefillRecurring !== undefined ? route.params.prefillRecurring : true);
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState('Monday');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(route.params?.prefillDate || new Date().toISOString().split('T')[0]);
   
   const [moduleName, setModuleName] = useState('');
   const [type, setType] = useState('Lecture'); // Lecture, Lab, Tutorial
@@ -31,6 +31,24 @@ export default function AddCourseScreen({ navigation, route }: any) {
   const [showEndPicker, setShowEndPicker] = useState(false);
   
   const [submitting, setSubmitting] = useState(false);
+  const [existingModules, setExistingModules] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      get(ref(db, 'courses')).then(snap => {
+        const mods = new Set<string>();
+        if (snap.exists()) {
+          snap.forEach(child => {
+             const data = child.val();
+             if (data.userId === user.uid && data.moduleName) {
+               mods.add(data.moduleName);
+             }
+          });
+        }
+        setExistingModules(Array.from(mods));
+      });
+    }
+  }, [user]);
 
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const types = ['Lecture', 'Lab', 'Tutorial'];
@@ -67,13 +85,20 @@ export default function AddCourseScreen({ navigation, route }: any) {
       setEndTimeDate(parseTime(editingCourse.endTime));
     } else {
       // Clear fields if navigating without editingCourse
+      if (route.params?.prefillRecurring !== undefined) {
+        setIsRecurring(route.params.prefillRecurring);
+      }
+      if (route.params?.prefillDate) {
+        setSelectedDate(route.params.prefillDate);
+      }
+      
       setModuleName('');
       setLocation('');
       setDescription('');
       setStartTimeDate(new Date());
       setEndTimeDate(new Date());
     }
-  }, [editingCourse]);
+  }, [editingCourse, route.params?.prefillRecurring, route.params?.prefillDate]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -255,6 +280,21 @@ export default function AddCourseScreen({ navigation, route }: any) {
                 value={moduleName}
                 onChangeText={setModuleName}
               />
+              {!isRecurring && existingModules.length > 0 && (
+                <View style={{ marginTop: spacing.s }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                    {existingModules.map(mod => (
+                      <TouchableOpacity 
+                        key={mod} 
+                        style={[styles.chipButton, moduleName === mod && styles.chipButtonActive, { marginRight: spacing.xs, paddingVertical: 6, paddingHorizontal: 12 }]}
+                        onPress={() => setModuleName(mod)}
+                      >
+                        <Text style={[styles.chipText, moduleName === mod && styles.chipTextActive, { fontSize: 12 }]}>{mod}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
             </View>
 
             <View style={styles.row}>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { ref, get, remove } from 'firebase/database';
 import { db } from '../config/firebase';
@@ -153,6 +154,12 @@ export default function CalendarScreen({ navigation }: any) {
       <ScrollView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Timetable</Text>
+          <TouchableOpacity 
+            style={styles.addButton} 
+            onPress={() => navigation.navigate('Add', { prefillDate: selectedDate, prefillRecurring: false })}
+          >
+            <MaterialCommunityIcons name="plus" size={24} color="#FFF" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.calendarContainer}>
@@ -227,6 +234,15 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '900',
     letterSpacing: -1,
+  },
+  addButton: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
   },
   calendarContainer: { borderRadius: 16, overflow: 'hidden', marginBottom: spacing.xl },
   calendar: { borderRadius: 16 },

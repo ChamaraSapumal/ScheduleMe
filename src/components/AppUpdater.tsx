@@ -28,6 +28,8 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
       const remoteVersion = data.tag_name ? data.tag_name.replace('v', '') : '1.0.0';
       const currentVersion = Constants.expoConfig?.version || '1.0.0';
 
+      console.log(`Update Check: Remote V${remoteVersion} | Local V${currentVersion}`);
+
       if (compareVersions(remoteVersion, currentVersion) > 0) {
         setLatestVersion(remoteVersion);
         
@@ -35,10 +37,15 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
         if (apkAsset) {
           setDownloadUrl(apkAsset.browser_download_url);
           setUpdateAvailable(true);
+        } else {
+          setUpdateAvailable(false);
         }
+      } else {
+        setUpdateAvailable(false);
       }
     } catch (error) {
       console.log('Error checking GitHub release:', error);
+      setUpdateAvailable(false);
     }
   };
 

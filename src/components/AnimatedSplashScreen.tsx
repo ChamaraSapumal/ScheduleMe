@@ -6,10 +6,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 const { width, height } = Dimensions.get('window');
 
 interface AnimatedSplashScreenProps {
+  isAppReady: boolean;
   onFinish: () => void;
 }
 
-export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onFinish }) => {
+export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ isAppReady, onFinish }) => {
   const letters = "ScheduleMe".split("");
   
   // Animation values for each letter
@@ -20,7 +21,42 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onFi
   const logoRotateY = useRef(new Animated.Value(0)).current;
   const logoShadow = useRef(new Animated.Value(0)).current;
 
+  const minTimeElapsed = useRef(false);
+  const dataReady = useRef(isAppReady);
+  const isExiting = useRef(false);
+  const sequenceFinished = useRef(false);
+  const loopAnim = useRef<Animated.CompositeAnimation | null>(null);
+
+  const checkAndExit = () => {
+    if (minTimeElapsed.current && dataReady.current && sequenceFinished.current && !isExiting.current) {
+      isExiting.current = true;
+      
+      if (loopAnim.current) {
+          loopAnim.current.stop();
+      }
+
+      Animated.timing(containerOpacity, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }).start(() => {
+        onFinish();
+      });
+    }
+  };
+
   useEffect(() => {
+    dataReady.current = isAppReady;
+    checkAndExit();
+  }, [isAppReady]);
+
+  useEffect(() => {
+    // 7 second minimum display
+    const minimumTimer = setTimeout(() => {
+        minTimeElapsed.current = true;
+        checkAndExit();
+    }, 7000);
+
     // 1. Logo Entrance and 3D Spin
     Animated.sequence([
       Animated.parallel([
@@ -28,13 +64,13 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onFi
             toValue: 1,
             friction: 6,
             tension: 40,
-            useNativeDriver: false, // Changed to false to match shadow animation
+            useNativeDriver: false,
         }),
         Animated.timing(logoRotateX, {
             toValue: 1,
             duration: 1000,
             easing: Easing.out(Easing.back(1.5)),
-            useNativeDriver: false, // Changed to false to match shadow animation
+            useNativeDriver: false,
         }),
         Animated.timing(logoShadow, {
             toValue: 1,
@@ -48,19 +84,25 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onFi
             toValue: 1,
             friction: 7,
             tension: 50,
-            useNativeDriver: true, // Letters can stay on native driver as they don't animate shadows
+            useNativeDriver: true,
         })
-      )),
-      // 3. Pause and Fade Out
-      Animated.delay(800),
-      Animated.timing(containerOpacity, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      })
+      ))
     ]).start(() => {
-      onFinish();
+      sequenceFinished.current = true;
+      
+      // Start a continuous breathing pulse while waiting
+      loopAnim.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(logoScale, { toValue: 1.05, duration: 1000, useNativeDriver: false }),
+          Animated.timing(logoScale, { toValue: 1, duration: 1000, useNativeDriver: false })
+        ])
+      );
+      loopAnim.current.start();
+      
+      checkAndExit();
     });
+
+    return () => clearTimeout(minimumTimer);
   }, []);
 
   return (

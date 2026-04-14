@@ -218,6 +218,7 @@ const styles = StyleSheet.create({
   },
   timerCard: {
     backgroundColor: theme.card,
+    flex: 1,
     minHeight: 300,
     marginTop: 10,
     borderTopLeftRadius: 40,

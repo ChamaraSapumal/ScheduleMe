@@ -2,7 +2,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ref, get } from 'firebase/database';
+import { ref, get, set } from 'firebase/database';
 import { db } from '../config/firebase';
 import { AuthContext } from '../context/AuthContext';
 import { useIsFocused } from '@react-navigation/native';
@@ -32,6 +32,7 @@ export default function AttendanceScreen() {
   const { showAlert } = useCustomAlert();
   const [courses, setCourses] = useState<string[]>([]);
   const [absences, setAbsences] = useState<Record<string, number>>({});
+  const [extraClasses, setExtraClasses] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (user && isFocused) {
@@ -45,40 +46,61 @@ export default function AttendanceScreen() {
       const coursesRef = ref(db, 'courses');
       const snapshot = await get(coursesRef);
       const uniqueModules = new Set<string>();
+      const extraCounter: Record<string, number> = {};
 
       if (snapshot.exists()) {
         snapshot.forEach((childSnapshot) => {
           const data = childSnapshot.val();
           if (data.userId === user.uid && data.moduleName) {
             uniqueModules.add(data.moduleName);
+            // Count extra, non-recurring lectures
+            if (!data.isRecurring) {
+              extraCounter[data.moduleName] = (extraCounter[data.moduleName] || 0) + 1;
+            }
           }
         });
       }
+      setExtraClasses(extraCounter);
+      
       const courseList = Array.from(uniqueModules);
       setCourses(courseList);
 
-      const storedAbsences = await AsyncStorage.getItem(`attendance_${user.uid}`);
-      if (storedAbsences) {
-        setAbsences(JSON.parse(storedAbsences));
+      // Try fetching from Firebase first
+      const attendanceRef = ref(db, `users/${user.uid}/attendance`);
+      const attendanceSnap = await get(attendanceRef);
+      
+      let fetchedAbsences: Record<string, number> = {};
+      if (attendanceSnap.exists()) {
+        fetchedAbsences = attendanceSnap.val();
       } else {
-        const initial: Record<string, number> = {};
-        courseList.forEach(c => initial[c] = 0);
-        setAbsences(initial);
+        // Fallback to AsyncStorage or initialize
+        const storedAbsences = await AsyncStorage.getItem(`attendance_${user.uid}`);
+        if (storedAbsences) {
+          fetchedAbsences = JSON.parse(storedAbsences);
+          // Sync local to Firebase since Firebase had nothing
+          await set(attendanceRef, fetchedAbsences);
+        } else {
+          courseList.forEach(c => fetchedAbsences[c] = 0);
+          await set(attendanceRef, fetchedAbsences);
+        }
       }
+      
+      setAbsences(fetchedAbsences);
     } catch (e) {
       console.log('Error loading attendance', e);
     }
   };
 
   const addAbsence = async (courseName: string) => {
+    const totalClassesForCourse = TOTAL_SEMESTER_CLASSES + (extraClasses[courseName] || 0);
     const current = absences[courseName] || 0;
-    if (current >= TOTAL_SEMESTER_CLASSES) return;
+    if (current >= totalClassesForCourse) return;
 
     const newMissed = current + 1;
     updateAbsence(courseName, newMissed);
 
-    const attended = TOTAL_SEMESTER_CLASSES - newMissed;
-    if ((attended / TOTAL_SEMESTER_CLASSES) < 0.8) {
+    const attended = totalClassesForCourse - newMissed;
+    if ((attended / totalClassesForCourse) < 0.8) {
       showAlert({
         title: 'Eligibility Warning!',
         message: `Your attendance in ${courseName} has dropped below 80%. Please attend your next classes!`,
@@ -98,14 +120,17 @@ export default function AttendanceScreen() {
     setAbsences(updated);
     if (user) {
       await AsyncStorage.setItem(`attendance_${user.uid}`, JSON.stringify(updated));
+      const attendanceRef = ref(db, `users/${user.uid}/attendance`);
+      await set(attendanceRef, updated);
     }
   };
 
   const renderCourse = ({ item }: { item: string }) => {
+    const totalClassesForCourse = TOTAL_SEMESTER_CLASSES + (extraClasses[item] || 0);
     const missed = absences[item] || 0;
-    const attended = TOTAL_SEMESTER_CLASSES - missed;
-    const progressWidth = `${(attended / TOTAL_SEMESTER_CLASSES) * 100}%`;
-    const isDanger = (attended / TOTAL_SEMESTER_CLASSES) < 0.8;
+    const attended = totalClassesForCourse - missed;
+    const progressWidth = `${(attended / totalClassesForCourse) * 100}%`;
+    const isDanger = (attended / totalClassesForCourse) < 0.8;
 
     const isWarning = missed >= 3;
 
@@ -127,9 +152,9 @@ export default function AttendanceScreen() {
             </View>
 
             <TouchableOpacity
-              style={[styles.smallBtn, { opacity: missed >= TOTAL_SEMESTER_CLASSES ? 0.3 : 1 }]}
+              style={[styles.smallBtn, { opacity: missed >= totalClassesForCourse ? 0.3 : 1 }]}
               onPress={() => addAbsence(item)}
-              disabled={missed >= TOTAL_SEMESTER_CLASSES}
+              disabled={missed >= totalClassesForCourse}
             >
               <MaterialCommunityIcons name="plus" size={18} color={theme.textMain} />
             </TouchableOpacity>
@@ -138,7 +163,7 @@ export default function AttendanceScreen() {
 
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{TOTAL_SEMESTER_CLASSES}</Text>
+            <Text style={styles.statValue}>{totalClassesForCourse}</Text>
             <Text style={styles.statLabel}>Total</Text>
           </View>
           <View style={styles.statBox}>

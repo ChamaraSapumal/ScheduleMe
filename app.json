@@ -2,11 +2,10 @@
   "expo": {
     "name": "ScheduleMe",
     "slug": "ScheduleMe",
-    "version": "2.3.1",
+    "version": "2.4.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splashdesign.png",
       "resizeMode": "cover",
@@ -17,7 +16,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#3E315A"
       },
       "edgeToEdgeEnabled": true,
@@ -61,20 +60,20 @@
         "expo-build-properties",
         {
           "android": {
-            "enablePngCrunch": false,
-            "newArchEnabled": false
+            "enablePngCrunch": false
           }
         }
-      ]
+      ],
+      "expo-quick-actions"
     ],
     "extra": {
       "eas": {
-        "projectId": "808ea7fa-6b24-4a6e-9a47-bb4e1cb87035"
+        "projectId": "4c5e6bf4-144c-4794-a3a2-2a7670360297"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "owner": "chamarax"
+    "owner": "sapubb"
   }
 }

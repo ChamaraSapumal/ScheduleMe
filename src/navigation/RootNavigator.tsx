@@ -24,6 +24,9 @@ import AddCourseScreen from '../screens/AddCourseScreen';
 import ShareTimetableScreen from '../screens/ShareTimetableScreen';
 import ScanTimetableScreen from '../screens/ScanTimetableScreen';
 import InAppTour from '../components/InAppTour';
+import { AnimatedSplashScreen } from '../components/AnimatedSplashScreen';
+import * as QuickActions from 'expo-quick-actions';
+import { useQuickActionCallback } from 'expo-quick-actions/hooks';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -144,6 +147,69 @@ export default function RootNavigator() {
   const navigationRef = useNavigationContainerRef();
 
   const [currentRoute, setCurrentRoute] = React.useState<string | null>(null);
+  const [pendingQuickAction, setPendingQuickAction] = React.useState<string | null>(null);
+
+  // Initialize Quick Actions
+  useEffect(() => {
+    QuickActions.setItems([
+      {
+        id: 'start_focus',
+        title: 'Start Focus Session',
+        // In Android, passing standard valid icon names (lowercase) is recommended
+        icon: 'timer', 
+        params: { href: 'Focus' }
+      },
+      {
+        id: 'share_schedule',
+        title: 'Share Schedule',
+        icon: 'share',
+        params: { href: 'ShareTimetable' }
+      },
+      {
+        id: 'add_course',
+        title: 'Add Course',
+        icon: 'add',
+        params: { href: 'Add' }
+      }
+    ]);
+  }, []);
+
+  // Catch Quick Actions (Shortcuts)
+  useQuickActionCallback((action) => {
+    if (action?.params?.href) {
+      const targetRoute = action.params.href as string;
+      if (user && isUnlocked) {
+        handleQuickNavigation(targetRoute);
+      } else {
+        // App is locked or opening - queue the routing intent securely
+        setPendingQuickAction(targetRoute);
+      }
+    }
+  });
+
+  const handleQuickNavigation = (route: string) => {
+    if (!navigationRef.isReady()) return;
+    if (route === 'Focus') {
+      // Focus is nested inside MainTabs
+      // @ts-ignore
+      navigationRef.navigate('MainTabs', { screen: 'Focus' });
+    } else {
+      // @ts-ignore
+      navigationRef.navigate(route);
+    }
+  };
+
+  // Evaluate queued shortcut intent after Biometric Authentication
+  useEffect(() => {
+    if (user && isUnlocked && pendingQuickAction) {
+      // Small delay to ensure LockScreen completely unmounts and Tabs stack mounts
+      const flushTimer = setTimeout(() => {
+        handleQuickNavigation(pendingQuickAction);
+        setPendingQuickAction(null);
+      }, 300);
+      return () => clearTimeout(flushTimer);
+    }
+  }, [user, isUnlocked, pendingQuickAction]);
 
   // Set initial route
   useEffect(() => {
@@ -177,6 +243,11 @@ export default function RootNavigator() {
     currentRoute !== 'Focus';
   const shiftAnim = useRef(new Animated.Value(0)).current;
 
+  // Track splash visibility globally here instead of blocking App.tsx
+  const [showSplash, setShowSplash] = React.useState(true);
+  // App is ready to reveal when auth is loaded and onboarding flags are parsed
+  const isSetupComplete = !loading && (!user || hasSeenOnboarding !== null);
+
   useEffect(() => {
     Animated.spring(shiftAnim, {
       toValue: shouldShift ? 90 : 0, // 50 (top) + 40 (height) = 90px to clear perfectly at new position
@@ -185,14 +256,6 @@ export default function RootNavigator() {
       useNativeDriver: false,
     }).start();
   }, [shouldShift]);
-
-  if (loading || (user && hasSeenOnboarding === null)) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
 
   return (
     <NavigationContainer theme={MyTheme} onStateChange={onStateChange} ref={navigationRef}>
@@ -217,6 +280,15 @@ export default function RootNavigator() {
         </Animated.View>
         <DynamicIsland currentRoute={currentRoute} />
         <InAppTour />
+
+        {showSplash && (
+          <View style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]}>
+            <AnimatedSplashScreen 
+                isAppReady={isSetupComplete} 
+                onFinish={() => setShowSplash(false)} 
+            />
+          </View>
+        )}
       </View>
     </NavigationContainer>
   );

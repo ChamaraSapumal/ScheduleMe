@@ -19,7 +19,6 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
-  const [splashFinished, setSplashFinished] = useState(false);
 
   useEffect(() => {
     async function prepare() {
@@ -44,15 +43,10 @@ export default function App() {
     prepare();
   }, []);
 
-  if (!appIsReady || !splashFinished) {
+  if (!appIsReady) {
     return (
       <View style={styles.container}>
-        {!appIsReady ? (
-           // While native splash is clearing, we show a matching background
-           <View style={styles.fullBackground} />
-        ) : (
-          <AnimatedSplashScreen onFinish={() => setSplashFinished(true)} />
-        )}
+        <View style={styles.fullBackground} />
       </View>
     );
   }

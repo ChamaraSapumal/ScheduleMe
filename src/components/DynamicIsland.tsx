@@ -1,16 +1,17 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Dimensions, Platform, PanResponder } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useTimer } from '../context/TimerContext';
 import { useCustomAlert } from '../context/AlertContext';
 import { AuthContext } from '../context/AuthContext';
+import { useAppUpdate } from '../components/AppUpdater';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import Svg, { Circle } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
-const CircularProgress = ({ progress, size = 30 }: { progress: number, size?: number }) => {
+const CircularProgress = ({ progress, size = 30, icon = "timer-outline", color = colors.accent }: { progress: number, size?: number, icon?: string, color?: string }) => {
   const strokeWidth = 3;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
@@ -31,7 +32,7 @@ const CircularProgress = ({ progress, size = 30 }: { progress: number, size?: nu
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={colors.accent}
+          stroke={color}
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
@@ -39,7 +40,7 @@ const CircularProgress = ({ progress, size = 30 }: { progress: number, size?: nu
           fill="none"
         />
       </Svg>
-      <MaterialCommunityIcons name="timer-outline" size={size * 0.55} color={colors.accent} />
+      <MaterialCommunityIcons name={icon as any} size={size * 0.55} color={color} />
     </View>
   );
 };
@@ -48,9 +49,10 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
   const { user, isUnlocked } = useContext(AuthContext);
   const { timeLeft, totalTime, isRunning, mode, toggleTimer, resetTimer } = useTimer();
   const { activeAlert, hideAlert } = useCustomAlert();
+  const { isDownloading, downloadProgress, cancelDownload, latestVersion } = useAppUpdate();
   
   const [isExpanded, setIsExpanded] = useState(false);
-  const [islandMode, setIslandMode] = useState<'TIMER' | 'ALERT'>('TIMER');
+  const [islandMode, setIslandMode] = useState<'TIMER' | 'ALERT' | 'UPDATE'>('TIMER');
   
   const progress = timeLeft / totalTime;
   const autoHideTimer = useRef<NodeJS.Timeout | null>(null);
@@ -62,7 +64,7 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
     currentRoute !== 'Focus';
 
   const isAlertActive = !!activeAlert;
-  const isIslandVisible = isTimerModeVisible || isAlertActive;
+  const isIslandVisible = isTimerModeVisible || isAlertActive || isDownloading;
 
   const widthAnim = useRef(new Animated.Value(150)).current;
   const heightAnim = useRef(new Animated.Value(32)).current;
@@ -70,7 +72,10 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
   const translateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (activeAlert) {
+    if (isDownloading) {
+        setIslandMode('UPDATE');
+        if (!isExpanded && !isDownloading) setIsExpanded(false);
+    } else if (activeAlert) {
         setIslandMode('ALERT');
         setIsExpanded(false);
         translateY.setValue(-100);
@@ -92,7 +97,7 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
             useNativeDriver: false
         }).start();
     }
-  }, [activeAlert]);
+  }, [activeAlert, isDownloading]);
 
   useEffect(() => {
     Animated.timing(opacityAnim, {
@@ -112,9 +117,15 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
 
     if (isExpanded) {
         targetWidth = width * 0.94;
-        targetHeight = islandMode === 'ALERT' ? 120 : 85;
+        if (islandMode === 'ALERT') {
+            targetHeight = activeAlert?.showCancel ? 160 : 120;
+        } else if (islandMode === 'TIMER') {
+            targetHeight = 85;
+        } else if (islandMode === 'UPDATE') {
+            targetHeight = 110;
+        }
     } else if (isIslandVisible) {
-        targetWidth = islandMode === 'ALERT' ? 240 : 210;
+        targetWidth = (islandMode === 'ALERT' || islandMode === 'UPDATE') ? 240 : 210;
         targetHeight = 40;
     }
 
@@ -132,13 +143,13 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
         useNativeDriver: false,
       })
     ]).start();
-  }, [isExpanded, isIslandVisible, islandMode]);
+  }, [isExpanded, isIslandVisible, islandMode, activeAlert]);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        return islandMode === 'ALERT' && gestureState.dy < -10;
+        return (islandMode === 'ALERT' || islandMode === 'UPDATE') && gestureState.dy < -10;
       },
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy < 0) {
@@ -152,7 +163,8 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
                 duration: 250,
                 useNativeDriver: false
             }).start(() => {
-                hideAlert();
+                if (islandMode === 'ALERT') hideAlert();
+                else if (islandMode === 'UPDATE') cancelDownload();
                 translateY.setValue(0);
             });
         } else {
@@ -236,7 +248,7 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
           onPress={toggleExpand} 
           style={styles.touchArea}
         >
-          {islandMode === 'TIMER' ? (
+          {islandMode === 'TIMER' && (
             !isExpanded ? (
                 <View style={styles.pillContent}>
                   <CircularProgress progress={progress} size={32} />
@@ -258,7 +270,9 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
                   </View>
                 </View>
               )
-          ) : (
+          )}
+
+          {islandMode === 'ALERT' && (
             !isExpanded ? (
                 <View style={styles.pillContent}>
                   <MaterialCommunityIcons name={getAlertIcon() as any} size={24} color={getAlertColor()} />
@@ -271,6 +285,53 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
                         <Text style={styles.expandedAlertTitle}>{activeAlert?.title}</Text>
                     </View>
                     <Text style={styles.expandedAlertMessage}>{activeAlert?.message}</Text>
+                    
+                    {activeAlert?.onConfirm && (
+                      <View style={styles.alertActions}>
+                        {activeAlert.showCancel && (
+                          <TouchableOpacity 
+                            style={[styles.btnAction, styles.btnSecondary]} 
+                            onPress={() => {
+                              hideAlert();
+                              setIsExpanded(false);
+                            }}
+                          >
+                            <Text style={styles.btnSecondaryText}>{activeAlert.cancelText || 'Cancel'}</Text>
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity 
+                          style={[styles.btnAction, styles.btnPrimary]} 
+                          onPress={() => {
+                            activeAlert.onConfirm?.();
+                            hideAlert();
+                            setIsExpanded(false);
+                          }}
+                        >
+                          <Text style={styles.btnPrimaryText}>{activeAlert.confirmText || 'Confirm'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                </View>
+            )
+          )}
+
+          {islandMode === 'UPDATE' && (
+            !isExpanded ? (
+                <View style={styles.pillContent}>
+                  <CircularProgress progress={downloadProgress} size={32} icon="cloud-download-outline" color="#3ABEFF" />
+                  <Text style={styles.pillText}>{Math.round(downloadProgress * 100)}%</Text>
+                </View>
+            ) : (
+                <View style={styles.expandedContent}>
+                   <View style={styles.expandedInfo}>
+                    <Text style={styles.expandedMode}>Updating to v{latestVersion}</Text>
+                    <Text style={styles.expandedTime}>{Math.round(downloadProgress * 100)}%</Text>
+                  </View>
+                  <View style={styles.controls}>
+                    <TouchableOpacity style={[styles.controlBtn, { backgroundColor: '#FF6B6B' }]} onPress={cancelDownload}>
+                      <MaterialCommunityIcons name="close" size={22} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
             )
           )}
@@ -401,5 +462,37 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 20,
     backgroundColor: 'transparent',
+    marginBottom: 15,
+  },
+  alertActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 5,
+  },
+  btnAction: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  btnPrimary: {
+    backgroundColor: colors.accent,
+  },
+  btnSecondary: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  btnPrimaryText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  btnSecondaryText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   }
 });

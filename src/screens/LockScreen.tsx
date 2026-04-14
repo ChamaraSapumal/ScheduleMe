@@ -1,15 +1,11 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, LayoutAnimation, Platform, UIManager, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, LayoutAnimation, Platform, UIManager, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
 import { useCustomAlert } from '../context/AlertContext';
-import { colors, spacing } from '../theme';
-
-// Premium Lock Screen UI Overhaul
-// Improved with radial depth and glassmorphic elements
 
 const { width, height } = Dimensions.get('window');
 
@@ -31,7 +27,6 @@ export default function LockScreen() {
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const dotAnims = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
   const contentFade = useRef(new Animated.Value(0)).current;
-  const radialAnim = useRef(new Animated.Value(0)).current;
 
   // Key press scale animations
   const keyScaleAnims = useRef<{[key: string]: Animated.Value}>({}).current;
@@ -41,19 +36,15 @@ export default function LockScreen() {
 
   useEffect(() => {
     checkPin();
-    Animated.parallel([
-      Animated.timing(contentFade, {
-        toValue: 1,
-        duration: 1000,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(radialAnim, {
-        toValue: 1,
-        duration: 1500,
-        useNativeDriver: true,
-      })
-    ]).start();
+    
+    // Initial entry fade
+    Animated.timing(contentFade, {
+      toValue: 1,
+      duration: 800,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
   }, [user]);
 
   const triggerShake = () => {
@@ -70,15 +61,15 @@ export default function LockScreen() {
     Animated.spring(dotAnims[index], {
       toValue: filled ? 1 : 0,
       friction: 6,
-      tension: 50,
+      tension: 60,
       useNativeDriver: true,
     }).start();
   };
 
   const animateKeyPress = (key: string) => {
     Animated.sequence([
-        Animated.timing(keyScaleAnims[key], { toValue: 0.9, duration: 80, useNativeDriver: true }),
-        Animated.timing(keyScaleAnims[key], { toValue: 1, duration: 120, useNativeDriver: true }),
+        Animated.timing(keyScaleAnims[key], { toValue: 0.9, duration: 60, useNativeDriver: true }),
+        Animated.timing(keyScaleAnims[key], { toValue: 1, duration: 150, useNativeDriver: true }),
     ]).start();
   };
 
@@ -147,7 +138,7 @@ export default function LockScreen() {
                 setFirstPin('');
                 setSetupStep(1);
                 resetDots();
-              }, 200);
+              }, 300);
             }
           }
         } else {
@@ -158,7 +149,7 @@ export default function LockScreen() {
             setTimeout(() => {
               setPin('');
               resetDots();
-            }, 200);
+            }, 300);
           }
         }
       }, 150);
@@ -188,13 +179,20 @@ export default function LockScreen() {
                 style={[
                 styles.dotFilled,
                 { 
-                    opacity: dotAnims[i],
+                    opacity: dotAnims[i].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.1, 1]
+                    }),
                     transform: [{ 
                         scale: dotAnims[i].interpolate({
                             inputRange: [0, 1],
-                            outputRange: [0.5, 1.2]
+                            outputRange: [0.8, 1.2]
                         }) 
-                    }] 
+                    }],
+                    backgroundColor: dotAnims[i].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['#3A3749', '#6C5CE7']
+                    })
                 }
                 ]}
               />
@@ -235,13 +233,13 @@ export default function LockScreen() {
                             else if (keyStr === 'delete') handleBackspace();
                             else handleKeyPress(keyStr);
                         }}
-                        activeOpacity={0.6}
+                        activeOpacity={0.7}
                     >
                         {keyStr === 'biometric' && (
-                            <MaterialCommunityIcons name="fingerprint" size={36} color={colors.primary} />
+                            <MaterialCommunityIcons name="line-scan" size={32} color="#6C5CE7" />
                         )}
                         {keyStr === 'delete' && (
-                            <MaterialCommunityIcons name="backspace-outline" size={28} color={colors.textSecondary} />
+                            <MaterialCommunityIcons name="backspace-outline" size={28} color="#8B87A0" />
                         )}
                         {!isSpecial && <Text style={styles.keyText}>{keyStr}</Text>}
                     </TouchableOpacity>
@@ -256,41 +254,28 @@ export default function LockScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Radial Depth Background */}
-      <Animated.View 
-        style={[
-            styles.radialGlow, 
-            { opacity: radialAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.4] }) }
-        ]} 
-      />
-      
+      {/* Dark Premium Background Decor */}
+      <View style={styles.decorCircle1} />
+      <View style={styles.decorCircle2} />
+
       <SafeAreaView style={styles.safeArea}>
         <Animated.View style={[styles.content, { opacity: contentFade }]}>
 
-          {/* Unified Vertical Flow */}
+          {/* Top Section */}
           <View style={styles.topSection}>
-            <View style={styles.avatarOuter}>
-                <View style={styles.avatarWrapper}>
-                <Image
-                    source={require('../../assets/student-secure-login.png')}
-                    style={styles.avatarImage}
-                    resizeMode="contain"
-                />
-                </View>
-            </View>
+            <MaterialCommunityIcons name="shield-lock-outline" size={32} color="#6C5CE7" style={styles.lockIcon} />
             
             <View style={styles.textWrapper}>
               <Text style={styles.greeting}>
                 {setupMode 
-                  ? (setupStep === 1 ? 'Secure your hub' : 'One more time') 
-                  : 'Welcome back,'}
+                  ? (setupStep === 1 ? 'Secure your hub' : 'Verification') 
+                  : 'Welcome back'}
               </Text>
               <Text style={styles.name}>
                 {setupMode 
-                  ? (setupStep === 1 ? 'Create a PIN' : 'Confirm PIN') 
+                  ? (setupStep === 1 ? 'Create PIN' : 'Confirm PIN') 
                   : firstName}
               </Text>
-              {!setupMode && <View style={styles.indicator} />}
             </View>
           </View>
 
@@ -305,10 +290,10 @@ export default function LockScreen() {
             </View>
           </View>
 
-          {/* Bottom Section - Action */}
+          {/* Bottom Section */}
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-              <Text style={styles.logoutText}>Not you? <Text style={styles.logoutAccent}>Switch Account</Text></Text>
+            <TouchableOpacity style={styles.switchBtn} onPress={logout}>
+              <Text style={styles.switchText}>Not you? <Text style={styles.switchAccent}>Switch Account</Text></Text>
             </TouchableOpacity>
           </View>
 
@@ -321,77 +306,66 @@ export default function LockScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F5FF',
+    backgroundColor: '#0A0A0E', // Stunning Deep Black/Purple
   },
-  radialGlow: {
+  decorCircle1: {
     position: 'absolute',
-    top: -height * 0.1,
-    left: -width * 0.2,
-    width: width * 1.4,
-    height: width * 1.4,
-    borderRadius: width * 0.7,
-    backgroundColor: colors.accent,
-    opacity: 0.1,
+    width: width * 1.2,
+    height: width * 1.2,
+    borderRadius: width * 0.6,
+    backgroundColor: '#6C5CE7',
+    opacity: 0.05,
+    top: -width * 0.4,
+    left: -width * 0.1,
+  },
+  decorCircle2: {
+    position: 'absolute',
+    width: width * 0.8,
+    height: width * 0.8,
+    borderRadius: width * 0.4,
+    backgroundColor: '#A29BFE',
+    opacity: 0.03,
+    bottom: height * 0.1,
+    right: -width * 0.3,
   },
   safeArea: {
     flex: 1,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 25,
     justifyContent: 'space-between',
   },
   topSection: {
     alignItems: 'center',
-    marginTop: height * 0.04,
+    marginTop: height * 0.12, // Pushed up 
   },
-  avatarOuter: {
-    padding: 10,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    shadowColor: '#3E315A',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 2,
-    marginBottom: 15,
-  },
-  avatarWrapper: {
-    width: width * 0.4,
-    height: width * 0.35,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
+  lockIcon: {
+    marginBottom: 20,
+    opacity: 0.8,
+    textShadowColor: 'rgba(108, 92, 231, 0.4)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 10,
   },
   textWrapper: {
     alignItems: 'center',
-    width: '100%',
   },
   greeting: {
-    fontSize: 13,
-    color: '#8F8A9E',
-    fontWeight: '800',
+    fontSize: 14,
+    color: '#8B87A0',
+    fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 2,
+    letterSpacing: 4,
+    marginBottom: 10,
   },
   name: {
-    fontSize: 34,
-    color: '#1A1820',
-    fontWeight: '900',
-    letterSpacing: -1.5,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  indicator: {
-    width: 30,
-    height: 4,
-    backgroundColor: colors.primary,
-    borderRadius: 2,
-    marginTop: 10,
-    opacity: 0.3,
+    fontSize: 42,
+    color: '#FFFFFF',
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(255, 255, 255, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 15,
   },
   interactionSection: {
     flex: 2,
@@ -399,7 +373,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dotsWrapper: {
-    marginBottom: 40,
+    marginBottom: 50, // Keep space clean
   },
   dotsContainer: {
     flexDirection: 'row',
@@ -407,21 +381,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dotBackground: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(62, 49, 90, 0.08)',
-    marginHorizontal: 15,
+    width: 14,
+    height: 14,
+    marginHorizontal: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(62, 49, 90, 0.03)',
   },
   dotFilled: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#3E315A',
+    width: '100%',
+    height: '100%',
+    borderRadius: 7,
   },
   keypadWrapper: {
     width: '100%',
@@ -433,55 +402,52 @@ const styles = StyleSheet.create({
   keypadRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 25,
+    marginBottom: 20,
   },
   keyButton: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
+    width: 80, // Fixed symmetrical size
+    height: 80,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#3E315A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)', // Glassy dark
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   keyButtonSpecial: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   keyButtonEmpty: {
-    width: 78,
-    height: 78,
+    width: 80,
+    height: 80,
   },
   keyText: {
-    color: '#3E315A',
-    fontSize: 30,
-    fontWeight: '700',
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: '500',
   },
   footer: {
-    paddingVertical: 20,
+    paddingVertical: 25,
     alignItems: 'center',
   },
-  logoutBtn: {
-    padding: 15,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+  switchBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
   },
-  logoutText: {
-    color: '#8F8A9E',
-    fontSize: 13,
-    fontWeight: '600',
+  switchText: {
+    color: '#8B87A0',
+    fontSize: 14,
+    fontWeight: '500',
   },
-  logoutAccent: {
-    color: '#3E315A',
-    fontWeight: '900',
+  switchAccent: {
+    color: '#6C5CE7',
+    fontWeight: '700',
   }
 });
+

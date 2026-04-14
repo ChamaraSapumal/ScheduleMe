@@ -329,11 +329,19 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.itemText}>
                 <Text style={styles.itemLabel}>App Version</Text>
-                <Text style={styles.itemValue}>V{currentVersion} (Up to date)</Text>
+                <Text style={styles.itemValue}>
+                  V{currentVersion} {updateAvailable ? `(v${latestVersion} Available)` : '(Up to date)'}
+                </Text>
               </View>
               {updateAvailable && (
-                <TouchableOpacity style={styles.updateBadge} onPress={handleDownloadAndInstall}>
-                  <Text style={styles.updateBadgeText}>UPDATE</Text>
+                <TouchableOpacity 
+                   style={[styles.updateBadge, isDownloading && { backgroundColor: '#FF6B6B' }]} 
+                   onPress={handleDownloadAndInstall}
+                   disabled={isDownloading}
+                >
+                  <Text style={styles.updateBadgeText}>
+                     {isDownloading ? `DL ${Math.round(downloadProgress * 100)}%` : 'UPDATE'}
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
