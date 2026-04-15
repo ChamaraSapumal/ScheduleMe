@@ -11,6 +11,7 @@ import EmergencyNotesScreen from './EmergencyNotesScreen';
 import ProfileScreen from './ProfileScreen';
 import AttendanceScreen from './AttendanceScreen';
 import AddCourseScreen from './AddCourseScreen';
+import StudentHubScreen from './StudentHubScreen';
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -53,6 +54,7 @@ export default function SelfDevHubScreen() {
         <Tab.Screen name="To-Dos" component={TodosScreen} />
         <Tab.Screen name="Dreams" component={DreamsScreen} />
         <Tab.Screen name="My profile" component={ProfileScreen} />
+        <Tab.Screen name="Community" component={StudentHubScreen} />
       </Tab.Navigator>
     </SafeAreaView>
   );

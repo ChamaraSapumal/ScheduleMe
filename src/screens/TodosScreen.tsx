@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Activi
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ref, push, set, remove, get } from 'firebase/database';
 import { db } from '../config/firebase';
-import { syncWrite, fetchWithCache } from '../utils/SyncManager';
+import { syncWrite, fetchWithCache, broadcastActivity } from '../utils/SyncManager';
 import { AuthContext } from '../context/AuthContext';
 import { colors, spacing } from '../theme';
 
@@ -59,6 +59,9 @@ export default function TodosScreen() {
     if (!user) return;
     try {
       await syncWrite('set', `users/${user.uid}/todos/${item.id}`, user.uid, { ...item, completed: !item.completed });
+      if (!item.completed) {
+        broadcastActivity(user.uid, '', 'completed a To-Do task 🎯');
+      }
       fetchTodos();
     } catch (e) {
       console.error(e);

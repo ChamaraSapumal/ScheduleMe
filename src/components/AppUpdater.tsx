@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Pla
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
+import { colors } from '../theme';
 
 export const UpdateContext = createContext<any>(null);
 
@@ -80,8 +81,9 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const handleDownloadAndInstall = async () => {
-    if (!downloadUrl) return;
+  const handleDownloadAndInstall = async (customUrl?: string) => {
+    const urlToUse = customUrl || downloadUrl;
+    if (!urlToUse) return;
 
     try {
       setIsDownloading(true);
@@ -89,7 +91,7 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
       const fileUri = `${FileSystem.documentDirectory}ScheduledMe_Update.apk`;
 
       downloadResumable.current = FileSystem.createDownloadResumable(
-        downloadUrl,
+        urlToUse,
         fileUri,
         {
           headers: {
@@ -138,7 +140,7 @@ export const AppUpdater = ({ children }: { children: React.ReactNode }) => {
           <View style={styles.successCard}>
             <View style={styles.imageHeader}>
               <Image 
-                source={require('../../assets/thankyou-student.png')} 
+                source={require('../../assets/thnakyou-student.png')} 
                 style={styles.successImage} 
                 resizeMode="contain" 
               />

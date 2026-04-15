@@ -1,17 +1,25 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState, LayoutAnimation } from 'react-native';
+import { AppState, LayoutAnimation, Linking, Platform } from 'react-native';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { scheduleFocusNotification, cancelAllNotifications, registerForPushNotificationsAsync } from '../utils/notificationService';
 import { useAudioPlayer } from 'expo-audio';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../config/firebase';
+import { ref, set, get, update, runTransaction } from 'firebase/database';
+import { updateSmartScore } from '../utils/SyncManager';
 
 interface TimerContextType {
   timeLeft: number;
   totalTime: number;
   isRunning: boolean;
   mode: 'FOCUS' | 'BREAK';
+  isDNDEnabled: boolean;
   toggleTimer: () => Promise<void>;
   resetTimer: () => Promise<void>;
   switchMode: (newMode: 'FOCUS' | 'BREAK') => Promise<void>;
+  toggleDND: () => void;
+  openSystemDND: () => void;
 }
 
 const FOCUS_TIME = 25 * 60;
@@ -23,9 +31,11 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isRunning, setIsRunning] = useState(false);
   const [timeLeft, setTimeLeft] = useState(FOCUS_TIME);
   const [mode, setMode] = useState<'FOCUS' | 'BREAK'>('FOCUS');
+  const [isDNDEnabled, setIsDNDEnabled] = useState(false);
   
   const totalTime = mode === 'FOCUS' ? FOCUS_TIME : BREAK_TIME;
   
+  const { user } = useContext(AuthContext);
   const tickRef = useRef(Date.now());
   const stateRef = useRef({ isRunning, timeLeft, mode });
   const player = useAudioPlayer({ uri: 'https://actions.google.com/sounds/v1/water/water_drop.ogg' });
@@ -66,6 +76,11 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setTimeLeft(remainder || (currentMode === 'FOCUS' ? FOCUS_TIME : BREAK_TIME));
             setIsRunning(false);
           }
+        }
+
+        const dndStored = await AsyncStorage.getItem('@dnd_enabled');
+        if (dndStored !== null) {
+          setIsDNDEnabled(JSON.parse(dndStored));
         }
       } catch (e) { }
     };
@@ -109,6 +124,17 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }, 250);
     } else if (timeLeft === 0 && isRunning) {
       playZenSound();
+      
+      // Update Total Focus Minutes if session completed
+      if (mode === 'FOCUS' && user) {
+        const profileRef = ref(db, `users/${user.uid}/profile/totalFocusMinutes`);
+        runTransaction(profileRef, (currentMinutes) => {
+          return (currentMinutes || 0) + (FOCUS_TIME / 60);
+        }).then(() => {
+          updateSmartScore(user.uid);
+        });
+      }
+
       const newMode = mode === 'FOCUS' ? 'BREAK' : 'FOCUS';
       setMode(newMode);
       setTimeLeft(newMode === 'FOCUS' ? FOCUS_TIME : BREAK_TIME);
@@ -117,6 +143,19 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     return () => clearInterval(interval);
   }, [isRunning, timeLeft, mode]);
+
+  // Sync Status to Community Hub
+  useEffect(() => {
+    if (!user) return;
+    
+    const statusRef = ref(db, `community/${user.uid}/status`);
+    const status = (isRunning && mode === 'FOCUS') ? 'focus' : 'available';
+    set(statusRef, status);
+    
+    return () => {
+      set(statusRef, 'available');
+    };
+  }, [isRunning, mode, user]);
 
   const toggleTimer = async () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -147,8 +186,28 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await cancelAllNotifications();
   };
 
+  const toggleDND = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const newState = !isDNDEnabled;
+    setIsDNDEnabled(newState);
+    AsyncStorage.setItem('@dnd_enabled', JSON.stringify(newState)).catch(() => {});
+  };
+
+  const openSystemDND = () => {
+    if (Platform.OS === 'android') {
+      IntentLauncher.startActivityAsync('android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS');
+    } else {
+      Linking.openURL('App-Prefs:DO_NOT_DISTURB').catch(() => {
+        Linking.openSettings(); // Fallback to general settings
+      });
+    }
+  };
+
   return (
-    <TimerContext.Provider value={{ timeLeft, totalTime, isRunning, mode, toggleTimer, resetTimer, switchMode }}>
+    <TimerContext.Provider value={{ 
+      timeLeft, totalTime, isRunning, mode, isDNDEnabled,
+      toggleTimer, resetTimer, switchMode, toggleDND, openSystemDND 
+    }}>
       {children}
     </TimerContext.Provider>
   );

@@ -1,17 +1,23 @@
-import { ActivityIndicator, View, Platform, StyleSheet, Animated, Dimensions } from 'react-native';
-import React, { useContext, useRef, useEffect } from 'react';
-import { NavigationContainer, DefaultTheme, useNavigationContainerRef } from '@react-navigation/native';
+import { ActivityIndicator, View, Platform, StyleSheet, Animated, Dimensions, useWindowDimensions } from 'react-native';
+import React, { useContext, useRef, useEffect, useState } from 'react';
+import { NavigationContainer, DefaultTheme, useNavigationContainerRef, useNavigationState } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTimer } from '../context/TimerContext';
+import * as Notifications from 'expo-notifications';
 
 import { AuthContext } from '../context/AuthContext';
-import { useAppUpdate } from '../components/AppUpdater';
-import { colors } from '../theme';
+import { ref, push, set, get, update } from 'firebase/database';
+import { db } from '../config/firebase';
 import { TimerProvider } from '../context/TimerContext';
 import { DynamicIsland } from '../components/DynamicIsland';
+import { useCustomAlert } from '../context/AlertContext';
+import { acceptFriendRequest, declineFriendRequest, approveJoinGroup, declineJoinRequest } from '../utils/SyncManager';
+import { useAppUpdate } from '../components/AppUpdater';
+import { colors } from '../theme';
 
 import LoginScreen from '../screens/LoginScreen';
 import AgendaScreen from '../screens/AgendaScreen';
@@ -21,8 +27,10 @@ import SelfDevHubScreen from '../screens/SelfDevHubScreen';
 import FocusScreen from '../screens/FocusScreen';
 import LockScreen from '../screens/LockScreen';
 import AddCourseScreen from '../screens/AddCourseScreen';
-import ShareTimetableScreen from '../screens/ShareTimetableScreen';
-import ScanTimetableScreen from '../screens/ScanTimetableScreen';
+import ShareSocialScreen from '../screens/ShareSocialScreen';
+import ScanSocialScreen from '../screens/ScanSocialScreen';
+import FriendListScreen from '../screens/FriendListScreen';
+import GroupDetailScreen from '../screens/GroupDetailScreen';
 import InAppTour from '../components/InAppTour';
 import { AnimatedSplashScreen } from '../components/AnimatedSplashScreen';
 import * as QuickActions from 'expo-quick-actions';
@@ -50,11 +58,27 @@ function TabNavigator() {
   const tabHeight = Platform.OS === 'ios' ? 85 : (70 + (bottomInset > 0 ? bottomInset - 5 : 0));
   const tabPaddingBottom = Platform.OS === 'ios' ? 30 : Math.max(10, bottomInset);
 
+  const { isRunning } = useTimer();
+  const navState = useNavigationState(state => state);
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+  
+  // Use a more robust way to detect the active route across nested navigators
+  let currentTabName = navState?.routes[navState.index]?.name;
+  if (navState?.routes[navState.index]?.state) {
+    const innerState: any = navState.routes[navState.index].state;
+    currentTabName = innerState.routes[innerState.index]?.name;
+  }
+  
+  // Hide tab bar if on Focus screen and in landscape (session active/launched)
+  const hideTabBar = currentTabName === 'Focus' && isLandscape;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
+          display: hideTabBar ? 'none' : 'flex',
           backgroundColor: colors.primary,
           borderTopWidth: 0,
           height: tabHeight,
@@ -142,9 +166,10 @@ const styles = StyleSheet.create({
 });
 
 export default function RootNavigator() {
-  const { user, loading, isUnlocked, hasSeenOnboarding } = useContext(AuthContext);
-  const { isRunning } = useTimer();
+  const { user, loading, isUnlocked, hasSeenOnboarding, pokes, clearPokes, bubblePlayer, incomingRequests, groupJoinRequests, groupMetadata, userName } = useContext(AuthContext);
+  const { isRunning, isDNDEnabled } = useTimer();
   const { isDownloading } = useAppUpdate();
+  const { showAlert } = useCustomAlert();
   const navigationRef = useNavigationContainerRef();
 
   const [currentRoute, setCurrentRoute] = React.useState<string | null>(null);
@@ -164,7 +189,7 @@ export default function RootNavigator() {
         id: 'share_schedule',
         title: 'Share Schedule',
         icon: 'share',
-        params: { href: 'ShareTimetable' }
+        params: { href: 'ShareSocial' }
       },
       {
         id: 'add_course',
@@ -258,6 +283,170 @@ export default function RootNavigator() {
     }).start();
   }, [shouldShift]);
 
+  // Global Orientation Lock (Consolidated & Strict)
+  useEffect(() => {
+    // We stay in landscape if the timer is running OR if we are on the Focus screen
+    // and it's already in landscape (meaning it started). 
+    // This prevents flipping back on Pause/Reset.
+    async function enforceOrientation() {
+      try {
+        if (currentRoute === 'Focus') {
+          if (isRunning) {
+            // Force Landscape when running
+            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT);
+          } else {
+            // When paused/reset on Focus screen, we ALLOW landscape if it was already there
+            // but we don't force it back to portrait unless we leave the screen.
+            const currentOrientation = await ScreenOrientation.getOrientationAsync();
+            const isHorizontal = currentOrientation === ScreenOrientation.Orientation.LANDSCAPE_LEFT || 
+                             currentOrientation === ScreenOrientation.Orientation.LANDSCAPE_RIGHT;
+            
+            if (!isHorizontal) {
+               await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+            }
+          }
+        } else {
+          // Everything else is strictly Portrait
+          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        }
+      } catch (e) {
+        console.warn('Orientation lock failed:', e);
+      }
+    }
+    
+    enforceOrientation();
+  }, [isRunning, currentRoute]);
+
+  // Global Poke Listener & Suppressor
+  useEffect(() => {
+    if (pokes && pokes.length > 0) {
+      const isFocused = isRunning && currentRoute === 'Focus'; // More accurate suppression
+      
+      if (!isFocused && !isDNDEnabled) {
+        const lastPoke = pokes[pokes.length - 1];
+        
+        // Trigger Dynamic Island via AlertContext
+        showAlert({
+          title: 'Incoming Motivation! ✨',
+          message: `${lastPoke.senderName} says: ${lastPoke.message || 'Keep it up!'}`,
+          type: 'success'
+        });
+
+        // Play Bubble Pop
+        if (bubblePlayer) {
+          bubblePlayer.seekTo(0);
+          bubblePlayer.play();
+        }
+
+        // Clear from Firebase so we don't repeat
+        clearPokes();
+      }
+    }
+  }, [pokes, isRunning, currentRoute]);
+
+  // Global Friend Request Listener
+  useEffect(() => {
+    if (incomingRequests && Object.keys(incomingRequests).length > 0) {
+      const isFocused = isRunning && currentRoute === 'Focus';
+      if (!isFocused && !isDNDEnabled) {
+        const firstRequestUid = Object.keys(incomingRequests)[0];
+        const request = incomingRequests[firstRequestUid];
+        
+        showAlert({
+          title: 'New Friend Request! 👋',
+          message: `${request.senderName} wants to connect with you.`,
+          type: 'info',
+          showCancel: true,
+          cancelText: 'Reject',
+          confirmText: 'Accept',
+          onConfirm: async () => {
+            if (!user) return;
+            await acceptFriendRequest(user.uid, firstRequestUid, userName || 'Student', request.senderName);
+            showAlert({ title: 'New Connection! ✨', message: `You and ${request.senderName} are now connected.`, type: 'success' });
+          },
+          onCancel: async () => {
+            if (!user) return;
+            await declineFriendRequest(user.uid, firstRequestUid);
+            showAlert({ title: 'Request Declined', message: 'The request has been removed.', type: 'warning' });
+          }
+        });
+      }
+    }
+  }, [incomingRequests, isRunning, currentRoute]);
+
+  // Global Group Join Request Listener
+  useEffect(() => {
+    if (groupJoinRequests && Object.keys(groupJoinRequests).length > 0) {
+      const isFocused = isRunning && currentRoute === 'Focus';
+      if (!isFocused && !isDNDEnabled) {
+        // Iterate through all groups and find the first pending request
+        for (const groupId of Object.keys(groupJoinRequests || {})) {
+          const requests = groupJoinRequests[groupId];
+          if (!requests) continue;
+          for (const requesterUid of Object.keys(requests || {})) {
+            const req = requests[requesterUid];
+            if (req.status === 'pending') {
+              const groupName = groupMetadata[groupId]?.name || 'Group';
+              
+              showAlert({
+                title: 'Join Request! 🏢',
+                message: `${req.name} wants to rejoin "${groupName}".`,
+                type: 'info',
+                confirmText: 'Approve',
+                showCancel: true,
+                cancelText: 'Decline',
+                onConfirm: async () => {
+                   if (!user) return;
+                   await approveJoinGroup(user.uid, groupId, requesterUid);
+                   showAlert({ title: 'Welcome Back!', message: `${req.name} has been added to the group.`, type: 'success' });
+                },
+                onCancel: async () => {
+                   if (!user) return;
+                   await declineJoinRequest(user.uid, groupId, requesterUid);
+                }
+              });
+
+              // Mark as 'seen' so it doesn't notify again
+              update(ref(db, `groups/${groupId}/join_requests/${requesterUid}`), { status: 'seen' });
+              
+              // Only notify one at a time for sanity
+              return; 
+            }
+          }
+        }
+      }
+    }
+  }, [groupJoinRequests, isRunning, currentRoute, groupMetadata]);
+
+  // Handle Native Notification Actions (Dynamic Island Buttons)
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const actionId = response.actionIdentifier;
+      const data = response.notification.request.content.data;
+      
+      if (!user) return;
+
+      if (data.type === 'friend_request') {
+        if (actionId === 'accept') {
+          acceptFriendRequest(user.uid, data.senderUid, userName || 'Student', data.senderName);
+          showAlert({ title: 'New Connection! ✨', message: `You and ${data.senderName} are now connected.`, type: 'success' });
+        } else if (actionId === 'reject') {
+          declineFriendRequest(user.uid, data.senderUid);
+          showAlert({ title: 'Request Declined', message: 'The request has been removed.', type: 'warning' });
+        }
+      } else if (data.type === 'group_request') {
+        if (actionId === 'approve') {
+          approveJoinGroup(user.uid, data.groupId, data.requesterUid);
+          showAlert({ title: 'Welcome Back!', message: `${data.requesterName} has been added to the group.`, type: 'success' });
+        } else if (actionId === 'decline') {
+          declineJoinRequest(user.uid, data.groupId, data.requesterUid);
+        }
+      }
+    });
+
+    return () => subscription.remove();
+  }, [user, userName]);
+
   return (
     <NavigationContainer theme={MyTheme} onStateChange={onStateChange} ref={navigationRef}>
       <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -268,8 +457,10 @@ export default function RootNavigator() {
                 <Stack.Group>
                   <Stack.Screen name="MainTabs" component={TabNavigator} />
                   <Stack.Screen name="Add" component={AddCourseScreen} />
-                  <Stack.Screen name="ShareTimetable" component={ShareTimetableScreen} />
-                  <Stack.Screen name="ScanTimetable" component={ScanTimetableScreen} />
+                  <Stack.Screen name="ShareSocial" component={ShareSocialScreen} />
+                  <Stack.Screen name="ScanSocial" component={ScanSocialScreen} />
+                  <Stack.Screen name="FriendList" component={FriendListScreen} />
+                  <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
                 </Stack.Group>
               ) : (
                 <Stack.Screen name="Lock" component={LockScreen} />

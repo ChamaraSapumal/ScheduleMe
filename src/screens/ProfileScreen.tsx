@@ -1,20 +1,21 @@
-import React, { useContext, useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Animated, PanResponder, Dimensions, TextInput, KeyboardAvoidingView, Platform, Alert, Modal } from 'react-native';
+import React, { useContext, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert, Modal, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
 import { useAppUpdate } from '../components/AppUpdater';
 import { auth, db } from '../config/firebase';
 import { signOut } from 'firebase/auth';
-import { ref, get, set } from 'firebase/database';
+import { ref, get, set, update } from 'firebase/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { useNavigation } from '@react-navigation/native';
+import { updateVibe } from '../utils/SyncManager';
 import { colors, spacing } from '../theme';
 
-const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
 
 // Premium Purple Palette
 const profileTheme = {
@@ -25,12 +26,14 @@ const profileTheme = {
   accent: '#D2B9FF',
   textHeader: '#1A1820',
   textSecondary: '#8F8A9E',
-  danger: '#FF6B6B'
+  danger: '#FF6B6B',
+  success: '#10B981',
+  info: '#0EA5E9'
 };
 
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
-  const { user, setUnlocked, setUserName } = useContext(AuthContext);
+  const { user, setUnlocked, setUserName, friends, setUniversity } = useContext(AuthContext);
   const { updateAvailable, latestVersion, isDownloading, downloadProgress, handleDownloadAndInstall, cancelDownload } = useAppUpdate();
 
   const currentVersion = Constants.expoConfig?.version || '1.0.0';
@@ -41,47 +44,18 @@ export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [universityShort, setUniversityShort] = useState('');
+  const [editUniversity, setEditUniversity] = useState('');
+  const friendCount = friends ? Object.keys(friends).length : 0;
+  const [showVibeModal, setShowVibeModal] = useState(false);
+  const [vibeEmoji, setVibeEmoji] = useState('✨');
+  const [vibeText, setVibeText] = useState('Feeling Good');
+  const [customVibe, setCustomVibe] = useState('');
   const [offlineSyncEnabled, setOfflineSyncEnabled] = useState(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
-
-  const SNAP_BOTTOM = 0; 
-  const SNAP_TOP = -screenHeight * 0.45; 
-  
-  const panY = useRef(new Animated.Value(SNAP_BOTTOM)).current;
-  const panYVal = useRef(SNAP_BOTTOM);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 10,
-      onPanResponderGrant: () => {
-        panY.setOffset(panYVal.current);
-        panY.setValue(0);
-      },
-      onPanResponderMove: Animated.event([null, { dy: panY }], { useNativeDriver: false }),
-      onPanResponderRelease: (_, gestureState) => {
-        panY.flattenOffset();
-        
-        if (gestureState.dy < -50 || gestureState.vy < -0.5) {
-          panYVal.current = SNAP_TOP;
-        } else if (gestureState.dy > 50 || gestureState.vy > 0.5) {
-          panYVal.current = SNAP_BOTTOM; 
-        } else {
-          // @ts-ignore
-          const currentVal = panY._value;
-          const distToTop = Math.abs(currentVal - SNAP_TOP);
-          const distToBot = Math.abs(currentVal - SNAP_BOTTOM);
-          panYVal.current = distToTop < distToBot ? SNAP_TOP : SNAP_BOTTOM;
-        }
-
-        Animated.spring(panY, {
-          toValue: panYVal.current,
-          useNativeDriver: false,
-          bounciness: 0,
-        }).start();
-      },
-    })
-  ).current;
+  const [communityVisibility, setCommunityVisibility] = useState(false);
+  const [pokeEnabled, setPokeEnabled] = useState(true);
+  const [totalScore, setTotalScore] = useState(0);
 
   useEffect(() => {
     loadProfile();
@@ -107,8 +81,19 @@ export default function ProfileScreen() {
           setUserName(data.name);
         }
         if (data.phone) setPhone(data.phone);
+        if (data.university) {
+          setUniversityShort(data.university);
+          setUniversity(data.university);
+        }
+        if (data.communityVisibility !== undefined) setCommunityVisibility(data.communityVisibility);
+        if (data.pokeEnabled !== undefined) setPokeEnabled(data.pokeEnabled);
+        if (data.totalScore) setTotalScore(data.totalScore);
+        if (data.vibe) {
+          setVibeEmoji(data.vibe.emoji || '✨');
+          setVibeText(data.vibe.text || 'Feeling Good');
+        }
       }
-      
+
       const syncPref = await AsyncStorage.getItem('@offline_sync_enabled');
       setOfflineSyncEnabled(syncPref === 'true');
     } catch (error) {
@@ -131,6 +116,69 @@ export default function ProfileScreen() {
     setShowOfflineModal(false);
   };
 
+  const toggleCommunityVisibility = async () => {
+    if (!user) return;
+    const newVal = !communityVisibility;
+    setCommunityVisibility(newVal);
+
+    try {
+      const updates: any = {};
+      updates[`users/${user.uid}/profile/communityVisibility`] = newVal;
+      updates[`community/${user.uid}/hidePoints`] = !newVal;
+      updates[`community/${user.uid}/name`] = name || 'Student';
+      if (universityShort) {
+        updates[`community/${user.uid}/university`] = universityShort;
+      }
+      updates[`community/${user.uid}/photo`] = photoUri || null;
+      updates[`community/${user.uid}/score`] = totalScore;
+      // also ensure pokeEnabled state is pushed to community
+      updates[`community/${user.uid}/pokeEnabled`] = pokeEnabled;
+
+      await update(ref(db), updates);
+    } catch (e) {
+      Alert.alert('Error', 'Could not update visibility settings.');
+      setCommunityVisibility(!newVal);
+    }
+  };
+
+  const togglePokeEnabled = async () => {
+    if (!user) return;
+    const newVal = !pokeEnabled;
+    setPokeEnabled(newVal);
+
+    try {
+      const updates: any = {};
+      updates[`users/${user.uid}/profile/pokeEnabled`] = newVal;
+      updates[`community/${user.uid}/pokeEnabled`] = newVal;
+
+      await update(ref(db), updates);
+    } catch (e) {
+      Alert.alert('Error', 'Could not update poke settings.');
+      setPokeEnabled(!newVal);
+    }
+  };
+
+  const handleSaveVibe = async (emoji: string, text: string) => {
+    if (!user) return;
+    try {
+      await updateVibe(user.uid, emoji, text);
+      setVibeEmoji(emoji);
+      setVibeText(text);
+      setShowVibeModal(false);
+    } catch (e) {
+      Alert.alert('Error', 'Could not update vibe.');
+    }
+  };
+
+  const curatedVibes = [
+    { emoji: '✍️', label: 'Grinding' },
+    { emoji: '☕', label: 'Coffee Break' },
+    { emoji: '🎧', label: 'In the Zone' },
+    { emoji: '😵‍💫', label: 'Exam Mode' },
+    { emoji: '🔥', label: 'On Fire' },
+    { emoji: '😴', label: 'Exhausted' },
+  ];
+
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -150,13 +198,13 @@ export default function ProfileScreen() {
       try {
         const uniqueFileName = `avatar_${Date.now()}.jpg`;
         const destUri = `${FileSystem.documentDirectory}${uniqueFileName}`;
-        
+
         await FileSystem.copyAsync({ from: sourceUri, to: destUri });
 
         if (user) {
           const oldImage = await AsyncStorage.getItem(`profileImage_${user.uid}`);
           if (oldImage && oldImage !== destUri) {
-            try { await FileSystem.deleteAsync(oldImage, { idempotent: true }); } catch (e) {}
+            try { await FileSystem.deleteAsync(oldImage, { idempotent: true }); } catch (e) { }
           }
           await AsyncStorage.setItem(`profileImage_${user.uid}`, destUri);
         }
@@ -171,14 +219,31 @@ export default function ProfileScreen() {
     if (!user) return;
     try {
       const profileRef = ref(db, `users/${user.uid}/profile`);
-      await set(profileRef, { name: editName, phone: editPhone });
+      const communityRef = ref(db, `community/${user.uid}`);
+
+      const uniData = editUniversity.trim().toUpperCase().slice(0, 8);
+
+      const profileUpdate = {
+        name: editName,
+        phone: editPhone,
+        university: uniData
+      };
+
+      await update(profileRef, profileUpdate);
+
+      // Also update community node for immediate leaderboard effect
+      await update(communityRef, {
+        name: editName,
+        university: uniData
+      });
+
       setName(editName);
       setUserName(editName);
       setPhone(editPhone);
-      
-      // Update persistent cache
+      setUniversityShort(uniData);
+      setUniversity(uniData);
+
       await AsyncStorage.setItem(`cached_name_${user.uid}`, editName);
-      
       setIsEditing(false);
     } catch (er) {
       Alert.alert('Error', 'Could not save profile details.');
@@ -198,222 +263,272 @@ export default function ProfileScreen() {
   const displayPhone = phone || 'Add phone number';
   const defaultImage = 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
 
+  const renderCardItem = (
+    icon: string,
+    bgColor: string,
+    iconColor: string,
+    title: string,
+    subtitle: string,
+    onPress?: () => void,
+    rightElement?: React.ReactNode,
+    isFirst?: boolean,
+    isLast?: boolean
+  ) => {
+    return (
+      <View>
+        <TouchableOpacity
+          style={[
+            styles.cardRow,
+            isFirst && styles.cardRowFirst,
+            isLast && styles.cardRowLast
+          ]}
+          onPress={onPress}
+          activeOpacity={onPress ? 0.7 : 1}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
+            <MaterialCommunityIcons name={icon as any} size={22} color={iconColor} />
+          </View>
+          <View style={styles.itemTextContainer}>
+            <Text style={styles.itemTitle}>{title}</Text>
+            <Text style={styles.itemSubtitle}>{subtitle}</Text>
+          </View>
+          {rightElement || (onPress && <MaterialCommunityIcons name="chevron-right" size={24} color="#CBD5E1" />)}
+        </TouchableOpacity>
+        {!isLast && <View style={styles.divider} />}
+      </View>
+    );
+  };
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-      {/* Top Hero Section */}
-      <View style={styles.topSection}>
-        <SafeAreaView edges={['top']}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Account Settings</Text>
-            <TouchableOpacity 
-              style={styles.headerBtn}
-              onPress={() => { setEditName(name); setEditPhone(phone); setIsEditing(!isEditing); }}
-            >
-              <MaterialCommunityIcons name={isEditing ? "close" : "cog-outline"} size={24} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-        {!isEditing ? (
-          <View style={styles.heroContent}>
-            <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} activeOpacity={0.9}>
-              <View style={styles.avatarGlow} />
-              <View style={styles.avatarOuterRing}>
-                <Image source={{ uri: photoUri || defaultImage }} style={styles.avatarImage} />
-              </View>
-              <View style={styles.cameraIconBadge}>
-                <MaterialCommunityIcons name="camera-outline" size={16} color={profileTheme.primary} />
-              </View>
-            </TouchableOpacity>
-            
-            <View style={styles.nameContainer}>
-              <Text style={styles.nameText}>{displayName}</Text>
-              <View style={styles.statusBadge}>
-                  <Text style={styles.statusText}>Premium Student Hub</Text>
-                  <MaterialCommunityIcons name="check-decagram" size={14} color={profileTheme.accent} />
-              </View>
+        {/* Premium Compact Header */}
+        <View style={styles.heroWrapper}>
+          <SafeAreaView edges={['top']}>
+            <View style={styles.headerTop}>
+              <Text style={styles.headerTitle}>Profile</Text>
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => {
+                  setEditName(name);
+                  setEditPhone(phone);
+                  setEditUniversity(universityShort);
+                  setIsEditing(!isEditing);
+                }}
+              >
+                <MaterialCommunityIcons name={isEditing ? "close" : "square-edit-outline"} size={22} color="#FFF" />
+              </TouchableOpacity>
             </View>
-          </View>
-        ) : (
-          <View style={styles.editHero}>
-            <Text style={styles.editTitle}>Update Profile</Text>
-            <View style={styles.inputWrapper}>
-               <MaterialCommunityIcons name="account-outline" size={20} color="#FFF" style={styles.inputIcon} />
-               <TextInput 
-                  style={styles.input} 
-                  value={editName} 
-                  onChangeText={setEditName} 
-                  placeholder="Full Name"
-                  placeholderTextColor="rgba(255,255,255,0.5)"
-               />
-            </View>
-            <View style={styles.inputWrapper}>
-               <MaterialCommunityIcons name="phone-outline" size={20} color="#FFF" style={styles.inputIcon} />
-               <TextInput 
-                  style={styles.input} 
-                  value={editPhone} 
-                  onChangeText={setEditPhone} 
-                  placeholder="Phone Number"
-                  keyboardType="phone-pad"
-                  placeholderTextColor="rgba(255,255,255,0.5)"
-               />
-            </View>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit}>
-               <Text style={styles.saveBtnText}>Save Changes</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          </SafeAreaView>
 
-      {/* Modern Draggable Bottom Sheet */}
-      <Animated.View style={[
-        styles.bottomSheet, 
-        { transform: [{ translateY: panY }] }
-      ]}>
-        <View style={styles.dragArea} {...panResponder.panHandlers}>
-          <View style={styles.dragIndicator} />
+          {!isEditing ? (
+            <View style={styles.heroDisplay}>
+              <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} activeOpacity={0.9}>
+                <Image source={{ uri: photoUri || defaultImage }} style={styles.avatarImg} />
+                <View style={styles.avatarEditBadge}>
+                  <MaterialCommunityIcons name="camera" size={14} color="#FFF" />
+                </View>
+              </TouchableOpacity>
+              <View style={styles.heroTextContent}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={styles.heroName}>{displayName}</Text>
+                </View>
+                <View style={styles.badgesRow}>
+                  <View style={styles.heroBadge}>
+                    <MaterialCommunityIcons name="star-circle" size={14} color={profileTheme.accent} />
+                    <Text style={styles.heroBadgeText}>Lvl {Math.floor(totalScore / 100) + 1}</Text>
+                  </View>
+                  <View style={[styles.heroBadge, { backgroundColor: 'rgba(210, 185, 255, 0.15)' }]}>
+                    <MaterialCommunityIcons name="check-decagram" size={14} color={profileTheme.accent} />
+                    <Text style={styles.heroBadgeText}>{totalScore} Pts</Text>
+                  </View>
+                  {universityShort ? (
+                    <View style={[styles.heroBadge, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]}>
+                      <MaterialCommunityIcons name="school" size={14} color={profileTheme.accent} />
+                      <Text style={styles.heroBadgeText}>{universityShort}</Text>
+                    </View>
+                  ) : null}
+                  <TouchableOpacity
+                    style={[styles.heroBadge, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}
+                    onPress={() => navigation.navigate('FriendList')}
+                  >
+                    <MaterialCommunityIcons name="account-group" size={14} color="#FFF" />
+                    <Text style={styles.heroBadgeText}>{friendCount} {friendCount === 1 ? 'Friend' : 'Friends'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.editFormContainer}>
+              <View style={styles.inputFlexRow}>
+                <View style={styles.inputWrapper}>
+                  <MaterialCommunityIcons name="account-outline" size={20} color={profileTheme.accent} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    value={editName}
+                    onChangeText={setEditName}
+                    placeholder="Full Name"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                  />
+                </View>
+              </View>
+              <View style={styles.inputFlexRow}>
+                <View style={styles.inputWrapper}>
+                  <MaterialCommunityIcons name="phone-outline" size={20} color={profileTheme.accent} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    value={editPhone}
+                    onChangeText={setEditPhone}
+                    placeholder="Phone Number"
+                    keyboardType="phone-pad"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                  />
+                </View>
+              </View>
+              <View style={styles.inputFlexRow}>
+                <View style={styles.inputWrapper}>
+                  <MaterialCommunityIcons name="school-outline" size={20} color={profileTheme.accent} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    value={editUniversity}
+                    onChangeText={setEditUniversity}
+                    placeholder="University (e.g. UWU, WYB)"
+                    maxLength={8}
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                  />
+                </View>
+              </View>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit}>
+                <Text style={styles.saveBtnText}>Save Profile Details</Text>
+                <MaterialCommunityIcons name="check-circle-outline" size={20} color={profileTheme.primary} style={{ marginLeft: 8 }} />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-        
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Info Section */}
-          <Text style={styles.sectionTitle}>Information</Text>
-          
-          <View style={styles.card}>
-            <View style={styles.cardItem}>
-              <View style={[styles.iconContainer, { backgroundColor: '#F0E8FF' }]}>
-                <MaterialCommunityIcons name="phone-outline" size={22} color={profileTheme.primary} />
-              </View>
-              <View style={styles.itemText}>
-                <Text style={styles.itemLabel}>Primary Phone</Text>
-                <Text style={styles.itemValue}>{displayPhone}</Text>
-              </View>
-            </View>
 
-            <View style={styles.divider} />
+        {/* Settings Body */}
+        <View style={styles.settingsBody}>
 
-            <View style={styles.cardItem}>
-              <View style={[styles.iconContainer, { backgroundColor: '#F0E8FF' }]}>
-                <MaterialCommunityIcons name="email-outline" size={22} color={profileTheme.primary} />
-              </View>
-              <View style={styles.itemText}>
-                <Text style={styles.itemLabel}>Email Address</Text>
-                <Text style={styles.itemValue}>{user?.email || 'N/A'}</Text>
-              </View>
-            </View>
+          <TouchableOpacity 
+             style={styles.premiumDigitalCard} 
+             onPress={() => navigation.navigate('ShareSocial', { initialTab: 'PROFILE' })}
+             activeOpacity={0.85}
+          >
+             <View style={styles.digitalCardContent}>
+                <View style={styles.digitalIconFrame}>
+                   <MaterialCommunityIcons name="qrcode-scan" size={24} color={profileTheme.primary} />
+                </View>
+                <View style={styles.digitalTextFrame}>
+                   <Text style={styles.digitalTitle}>My Digital Pass</Text>
+                   <Text style={styles.digitalSubtitle}>Instantly connect with peers • Open QR</Text>
+                </View>
+                <View style={styles.arrowBox}>
+                   <MaterialCommunityIcons name="chevron-right" size={20} color={profileTheme.primary} />
+                </View>
+             </View>
+             <View style={styles.cardGlowLine} />
+          </TouchableOpacity>
+
+          <Text style={styles.sectionHeading}>Account Details</Text>
+          <View style={styles.cardGroup}>
+            {renderCardItem("phone-outline", "#F3F0FF", profileTheme.primary, "Primary Phone", displayPhone, undefined, undefined, true, false)}
+            {renderCardItem("email-outline", "#F3F0FF", profileTheme.primary, "Email Address", user?.email || 'N/A', undefined, undefined, false, true)}
           </View>
 
-          {/* Peer Sharing */}
-          <Text style={styles.sectionTitle}>Peer Sharing</Text>
-          <View style={styles.card}>
-            <TouchableOpacity style={styles.cardItem} onPress={() => navigation.navigate('ShareTimetable')}>
-              <View style={[styles.iconContainer, { backgroundColor: '#E8F5FF' }]}>
-                <MaterialCommunityIcons name="qrcode-plus" size={22} color="#0EA5E9" />
-              </View>
-              <View style={styles.itemText}>
-                <Text style={styles.itemLabel}>Share Schedule</Text>
-                <Text style={styles.itemValue}>Generate Timetable QR</Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={profileTheme.textSecondary} />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity style={styles.cardItem} onPress={() => navigation.navigate('ScanTimetable')}>
-              <View style={[styles.iconContainer, { backgroundColor: '#E8F5FF' }]}>
-                <MaterialCommunityIcons name="qrcode-scan" size={22} color="#0EA5E9" />
-              </View>
-              <View style={styles.itemText}>
-                <Text style={styles.itemLabel}>Scan Timetable</Text>
-                <Text style={styles.itemValue}>Sync a friend's agenda</Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={profileTheme.textSecondary} />
-            </TouchableOpacity>
+          <Text style={styles.sectionHeading}>Peer Network</Text>
+          <View style={styles.cardGroup}>
+            {renderCardItem("qrcode-plus", "#E0F2FE", profileTheme.info, "Share Schedule", "Generate Timetable QR", () => navigation.navigate('ShareSocial', { initialTab: 'TIMETABLE' }), undefined, true, false)}
+            {renderCardItem("qrcode-scan", "#E0F2FE", profileTheme.info, "Scan Timetable", "Sync a friend's agenda", () => navigation.navigate('ScanSocial'), undefined, false, true)}
           </View>
 
-          {/* Security & System */}
-          <Text style={styles.sectionTitle}>Security & Updates</Text>
+          <Text style={styles.sectionHeading}>Preferences & Privacy</Text>
+          <View style={styles.cardGroup}>
+            {renderCardItem(
+              communityVisibility ? "earth" : "earth-off",
+              communityVisibility ? "rgba(210, 185, 255, 0.2)" : "#F1F5F9",
+              communityVisibility ? profileTheme.primary : "#94A3B8",
+              "Community Visibility",
+              communityVisibility ? "Visible to Peers" : "Hidden in Ghost Mode",
+              toggleCommunityVisibility,
+              <MaterialCommunityIcons name={communityVisibility ? "toggle-switch" : "toggle-switch-off-outline"} size={36} color={communityVisibility ? profileTheme.accent : "#CBD5E1"} />,
+              true, false
+            )}
+            {renderCardItem(
+              pokeEnabled ? "hand-wave" : "hand-wave-outline",
+              pokeEnabled ? "rgba(255, 107, 107, 0.1)" : "#F1F5F9",
+              pokeEnabled ? profileTheme.danger : "#94A3B8",
+              "Receive Motivations",
+              pokeEnabled ? "Anyone can poke me" : "Pokes completely disabled",
+              togglePokeEnabled,
+              <MaterialCommunityIcons name={pokeEnabled ? "toggle-switch" : "toggle-switch-off-outline"} size={36} color={pokeEnabled ? profileTheme.danger : "#CBD5E1"} />,
+              false, false
+            )}
+            {renderCardItem(
+              offlineSyncEnabled ? "cloud-check" : "cloud-off-outline",
+              offlineSyncEnabled ? "rgba(210, 185, 255, 0.2)" : "#F1F5F9",
+              offlineSyncEnabled ? profileTheme.primary : "#94A3B8",
+              "Offline Mode",
+              offlineSyncEnabled ? "Schedule saved locally" : "Requires internet",
+              toggleOfflineSync,
+              <MaterialCommunityIcons name={offlineSyncEnabled ? "toggle-switch" : "toggle-switch-off-outline"} size={36} color={offlineSyncEnabled ? profileTheme.accent : "#CBD5E1"} />,
+              false, true
+            )}
+          </View>
 
-          <View style={styles.card}>
-            <View style={styles.cardItem}>
-              <View style={[styles.iconContainer, { backgroundColor: '#000' }]}>
-                <MaterialCommunityIcons name="fingerprint" size={22} color={profileTheme.accent} />
-              </View>
-              <View style={styles.itemText}>
-                <Text style={styles.itemLabel}>Security Vault</Text>
-                <Text style={styles.itemValue}>Biometrics & PIN Enabled</Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={profileTheme.textSecondary} />
-            </View>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity style={styles.cardItem} onPress={toggleOfflineSync} activeOpacity={0.7}>
-              <View style={[styles.iconContainer, { backgroundColor: offlineSyncEnabled ? 'rgba(210, 185, 255, 0.2)' : '#F5F5F5' }]}>
-                <MaterialCommunityIcons name={offlineSyncEnabled ? "cloud-check" : "cloud-off-outline"} size={22} color={offlineSyncEnabled ? profileTheme.primary : "#9E9E9E"} />
-              </View>
-              <View style={styles.itemText}>
-                <Text style={styles.itemLabel}>Offline Mode</Text>
-                <Text style={styles.itemValue}>{offlineSyncEnabled ? 'Enabled' : 'Disabled'}</Text>
-              </View>
-              <MaterialCommunityIcons name={offlineSyncEnabled ? "toggle-switch" : "toggle-switch-off-outline"} size={32} color={offlineSyncEnabled ? profileTheme.accent : profileTheme.textSecondary} />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <View style={styles.cardItem}>
-              <View style={[styles.iconContainer, { backgroundColor: '#FFF0F0' }]}>
-                <MaterialCommunityIcons name="cloud-check-outline" size={22} color="#FF6B6B" />
-              </View>
-              <View style={styles.itemText}>
-                <Text style={styles.itemLabel}>App Version</Text>
-                <Text style={styles.itemValue}>
-                  V{currentVersion} {updateAvailable ? `(v${latestVersion} Available)` : '(Up to date)'}
-                </Text>
-              </View>
-              {updateAvailable && (
-                <TouchableOpacity 
-                   style={[styles.updateBadge, isDownloading && { backgroundColor: '#FF6B6B' }]} 
-                   onPress={handleDownloadAndInstall}
-                   disabled={isDownloading}
-                >
-                  <Text style={styles.updateBadgeText}>
-                     {isDownloading ? `DL ${Math.round(downloadProgress * 100)}%` : 'UPDATE'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+          <Text style={styles.sectionHeading}>Security & System</Text>
+          <View style={styles.cardGroup}>
+            {renderCardItem("fingerprint", "#1E293B", profileTheme.accent, "Security Vault", "Biometrics & PIN active", undefined, undefined, true, false)}
+            <View>
+              <TouchableOpacity style={[styles.cardRow, styles.cardRowLast]} activeOpacity={1}>
+                <View style={[styles.iconContainer, { backgroundColor: '#FFF0F0' }]}>
+                  <MaterialCommunityIcons name="update" size={22} color={profileTheme.danger} />
+                </View>
+                <View style={styles.itemTextContainer}>
+                  <Text style={styles.itemTitle}>App Version</Text>
+                  <Text style={styles.itemSubtitle}>V{currentVersion} {updateAvailable ? `(v${latestVersion} Available)` : '(Up to date)'}</Text>
+                </View>
+                {updateAvailable && (
+                  <TouchableOpacity
+                    style={[styles.updateBadge, isDownloading && { backgroundColor: '#FF6B6B' }]}
+                    onPress={handleDownloadAndInstall}
+                    disabled={isDownloading}
+                  >
+                    <Text style={styles.updateBadgeText}>
+                      {isDownloading ? `DL ${Math.round(downloadProgress * 100)}%` : 'UPDATE'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
 
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogOut}>
-            <MaterialCommunityIcons name="logout-variant" size={22} color={profileTheme.white} />
+            <MaterialCommunityIcons name="logout-variant" size={22} color={profileTheme.danger} />
             <Text style={styles.logoutBtnText}>Sign Out Securely</Text>
           </TouchableOpacity>
-          
-          <View style={styles.footerBranding}>
-             <Text style={styles.brandingText}>ScheduleMe Premium v{currentVersion}</Text>
+
+          <View style={styles.footerBrand}>
+            <MaterialCommunityIcons name="shield-check" size={14} color="#94A3B8" />
+            <Text style={styles.footerBrandText}>ScheduleMe Premium Auth</Text>
           </View>
-        </ScrollView>
-      </Animated.View>
+
+        </View>
+      </ScrollView>
 
       {/* Offline Mode Modal */}
       <Modal visible={showOfflineModal} transparent={true} animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.storageCard}>
             <View style={styles.storageImageWrapper}>
-              <Image
-                source={require('../../assets/storage-permission.png')}
-                style={styles.storageImage}
-                resizeMode="contain"
-              />
+              <Image source={require('../../assets/storage-permission.png')} style={styles.storageImage} resizeMode="contain" />
             </View>
-            
             <View style={styles.storageContent}>
               <Text style={styles.storageTitle}>OFFLINE MODE</Text>
               <Text style={styles.storageDesc}>
-                Can we securely save your schedule directly on your phone? 
+                Can we securely save your schedule directly on your phone?
                 This allows you to view your classes without an internet connection.
               </Text>
-              
               <View style={styles.storageFooter}>
                 <TouchableOpacity style={styles.declineButton} onPress={() => setShowOfflineModal(false)}>
                   <Text style={styles.declineText}>NOT NOW</Text>
@@ -428,6 +543,49 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
+      {/* Vibe Modal */}
+      <Modal visible={showVibeModal} transparent={true} animationType="fade">
+        <View style={styles.modalBackdropCenter}>
+          <View style={styles.vibeModalContent}>
+            <Text style={styles.modalTitle}>Set Your Vibe</Text>
+            <Text style={styles.modalSubtitle}>How are you feeling right now?</Text>
+
+            <View style={styles.vibeGrid}>
+              {curatedVibes.map((v) => (
+                <TouchableOpacity
+                  key={v.label}
+                  style={styles.vibeItem}
+                  onPress={() => handleSaveVibe(v.emoji, v.label)}
+                >
+                  <Text style={{ fontSize: 24, marginBottom: 4 }}>{v.emoji}</Text>
+                  <Text style={styles.vibeItemLabel}>{v.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.customVibeSection}>
+              <TextInput
+                style={styles.vibeInput}
+                placeholder="Or type something custom..."
+                value={customVibe}
+                onChangeText={setCustomVibe}
+                maxLength={20}
+              />
+              <TouchableOpacity
+                style={[styles.vibeSubmitBtn, !customVibe.trim() && { opacity: 0.5 }]}
+                disabled={!customVibe.trim()}
+                onPress={() => handleSaveVibe('✨', customVibe.trim())}
+              >
+                <MaterialCommunityIcons name="check" size={20} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.vibeCancel} onPress={() => setShowVibeModal(false)}>
+              <Text style={{ color: '#94A3B8', fontWeight: '700' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -437,123 +595,113 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: profileTheme.background,
   },
-  topSection: {
-    backgroundColor: profileTheme.primary,
-    height: '60%',
-    width: '100%',
-    borderBottomLeftRadius: 50,
-    borderBottomRightRadius: 50,
+  scrollContent: {
+    paddingBottom: 40,
   },
-  header: {
+  heroWrapper: {
+    backgroundColor: profileTheme.primary,
+    paddingHorizontal: 25,
+    paddingBottom: 35,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    shadowColor: profileTheme.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 25,
-    paddingTop: 20,
+    paddingTop: Platform.OS === 'android' ? 10 : 0,
+    marginBottom: 20,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFF',
-    letterSpacing: -0.5,
-  },
-  headerBtn: {
-    width: 45,
-    height: 45,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroContent: {
-    alignItems: 'center',
-    marginTop: 30,
-  },
-  avatarContainer: {
-    width: 140,
-    height: 140,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarGlow: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(210, 185, 255, 0.15)',
-  },
-  avatarOuterRing: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.2)',
-    padding: 3,
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 60,
-  },
-  cameraIconBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 10,
-    backgroundColor: '#FFF',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-  },
-  nameContainer: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  nameText: {
     fontSize: 28,
     fontWeight: '900',
     color: '#FFF',
-    letterSpacing: -1,
+    letterSpacing: -0.5,
   },
-  statusBadge: {
+  editBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 20,
+  },
+  avatarImg: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: profileTheme.primary,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  heroTextContent: {
+    flex: 1,
+  },
+  heroName: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: -0.5,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
-  statusText: {
+  heroBadgeText: {
+    color: '#FFF',
     fontSize: 12,
     fontWeight: '700',
-    color: profileTheme.accent,
-    marginRight: 4,
-    textTransform: 'uppercase',
+    marginLeft: 4,
   },
-  editHero: {
-    paddingHorizontal: 30,
+  editFormContainer: {
     marginTop: 10,
   },
-  editTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#FFF',
-    marginBottom: 20,
+  inputFlexRow: {
+    marginBottom: 12,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
     paddingHorizontal: 15,
-    marginBottom: 15,
-    height: 55,
+    height: 56,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   inputIcon: {
     marginRight: 12,
@@ -565,138 +713,183 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveBtn: {
+    flexDirection: 'row',
     backgroundColor: profileTheme.accent,
-    height: 55,
-    borderRadius: 15,
+    height: 56,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 5,
-    shadowColor: profileTheme.accent,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
   },
   saveBtnText: {
     color: profileTheme.primary,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  bottomSheet: {
-    backgroundColor: profileTheme.white, 
-    position: 'absolute',
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    paddingHorizontal: 25,
-    height: screenHeight * 0.9,
-    top: screenHeight * 0.48, 
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -15 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-  },
-  dragArea: {
-    width: '100%',
-    height: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dragIndicator: {
-    width: 40,
-    height: 5,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 3,
-  },
-  scrollContent: {
-    paddingTop: 10,
-    paddingBottom: screenHeight * 0.45, 
-  },
-  sectionTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '800',
-    color: profileTheme.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 15,
-    marginTop: 20,
-    marginLeft: 5,
+    marginLeft: 8,
   },
-  card: {
-    backgroundColor: profileTheme.secondary,
+  settingsBody: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  premiumDigitalCard: {
+    backgroundColor: '#FFF',
     borderRadius: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 5,
+    padding: 16,
+    marginBottom: 15,
+    borderWidth: 1.5,
+    borderColor: 'rgba(62, 49, 90, 0.05)',
+    shadowColor: '#3E315A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 15,
+    elevation: 3,
+    overflow: 'hidden',
   },
-  cardItem: {
+  digitalCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
   },
-  iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  digitalIconFrame: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(210, 185, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
   },
-  itemText: {
+  digitalTextFrame: {
     flex: 1,
   },
-  itemLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: profileTheme.textSecondary,
-    textTransform: 'uppercase',
+  digitalTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#1E1B4B',
     marginBottom: 2,
   },
-  itemValue: {
-    fontSize: 16,
+  digitalSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  cardGlowLine: {
+    position: 'absolute',
+    bottom: 0,
+    left: '10%',
+    right: '10%',
+    height: 3,
+    backgroundColor: profileTheme.accent,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    opacity: 0.3,
+  },
+  arrowBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(62, 49, 90, 0.04)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sectionHeading: {
+    fontSize: 14,
     fontWeight: '800',
-    color: profileTheme.textHeader,
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 25,
+    marginBottom: 12,
+    marginLeft: 4,
+  },
+  cardGroup: {
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    shadowColor: '#3E315A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  cardRowFirst: {
+    paddingTop: 20,
+  },
+  cardRowLast: {
+    paddingBottom: 20,
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    marginHorizontal: 15,
+    backgroundColor: '#F1F5F9',
+    marginLeft: 54,
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  itemTextContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  itemTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E1B4B',
+    marginBottom: 2,
+  },
+  itemSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94A3B8',
   },
   updateBadge: {
     backgroundColor: profileTheme.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   updateBadgeText: {
     color: '#FFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '900',
   },
   logoutBtn: {
     flexDirection: 'row',
-    backgroundColor: profileTheme.primary,
-    height: 60,
+    backgroundColor: '#FFF0F0',
+    height: 56,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 30,
-    shadowColor: profileTheme.primary,
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    marginTop: 35,
+    borderWidth: 1,
+    borderColor: '#FFE4E4',
   },
   logoutBtnText: {
-    color: '#FFF',
+    color: profileTheme.danger,
     fontSize: 16,
-    fontWeight: '900',
-    marginLeft: 10,
+    fontWeight: '800',
+    marginLeft: 8,
   },
-  footerBranding: {
-    marginTop: 40,
+  footerBrand: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 25,
+    opacity: 0.6,
   },
-  brandingText: {
+  footerBrandText: {
     fontSize: 12,
-    color: profileTheme.textSecondary,
-    fontWeight: '600',
-    opacity: 0.5,
+    color: '#94A3B8',
+    fontWeight: '700',
+    marginLeft: 6,
   },
   modalBackdrop: {
     flex: 1,
@@ -704,6 +897,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  modalBackdropCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   storageCard: {
     width: '100%',
@@ -728,7 +927,7 @@ const styles = StyleSheet.create({
   storageImage: {
     width: 140,
     height: 140,
-    borderRadius: 70, // Clips the gray background into a perfect circle
+    borderRadius: 70,
     borderWidth: 4,
     borderColor: '#F8F5FF',
   },
@@ -759,26 +958,26 @@ const styles = StyleSheet.create({
   },
   declineButton: {
     flex: 1,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#F1F5F9',
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   declineText: {
-    color: '#8F8A9E',
+    color: '#64748B',
     fontWeight: '800',
     fontSize: 13,
   },
   enableButton: {
     flex: 1.5,
     flexDirection: 'row',
-    backgroundColor: '#3E315A',
+    backgroundColor: profileTheme.primary,
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3E315A',
+    shadowColor: profileTheme.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -789,5 +988,83 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 13,
     marginRight: 6,
-  }
+  },
+  vibePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 8,
+    marginBottom: 5,
+    alignSelf: 'flex-start',
+  },
+  vibeEmoji: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  vibeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  vibeModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 30,
+    padding: 25,
+    width: '90%',
+    alignItems: 'center',
+  },
+  vibeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+    marginVertical: 15,
+  },
+  vibeItem: {
+    width: '28%',
+    aspectRatio: 1,
+    backgroundColor: '#F8F5FF',
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  vibeItemLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  customVibeSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 10,
+    gap: 10,
+  },
+  vibeInput: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E1B4B',
+  },
+  vibeSubmitBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#3B82F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vibeCancel: {
+    marginTop: 20,
+    padding: 10,
+  },
 });

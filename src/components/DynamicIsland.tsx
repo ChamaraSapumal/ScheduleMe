@@ -77,7 +77,8 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
         if (!isExpanded && !isDownloading) setIsExpanded(false);
     } else if (activeAlert) {
         setIslandMode('ALERT');
-        setIsExpanded(false);
+        const needsConfirmation = !!activeAlert.onConfirm;
+        setIsExpanded(needsConfirmation);
         translateY.setValue(-100);
         Animated.spring(translateY, {
             toValue: 0,
@@ -87,9 +88,13 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
         }).start();
 
         if (autoHideTimer.current) clearTimeout(autoHideTimer.current);
-        autoHideTimer.current = setTimeout(() => {
-            hideAlert();
-        }, 7000);
+        
+        // Don't auto-hide confirmation alerts immediately so users have time to respond
+        if (!needsConfirmation) {
+            autoHideTimer.current = setTimeout(() => {
+                hideAlert();
+            }, 7000);
+        }
     } else {
         setIslandMode('TIMER');
         Animated.spring(translateY, {
@@ -292,6 +297,7 @@ export const DynamicIsland = ({ currentRoute }: { currentRoute: string | null })
                           <TouchableOpacity 
                             style={[styles.btnAction, styles.btnSecondary]} 
                             onPress={() => {
+                              activeAlert.onCancel?.();
                               hideAlert();
                               setIsExpanded(false);
                             }}

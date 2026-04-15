@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ref, get, set } from 'firebase/database';
 import { db } from '../config/firebase';
-import { syncWrite, fetchWithCache } from '../utils/SyncManager';
+import { syncWrite, fetchWithCache, broadcastActivity } from '../utils/SyncManager';
 import { AuthContext } from '../context/AuthContext';
 import { useIsFocused } from '@react-navigation/native';
 import { useCustomAlert } from '../context/AlertContext';
@@ -104,6 +104,7 @@ export default function AttendanceScreen() {
     const current = absences[courseName] || 0;
     if (current <= 0) return;
     updateAbsence(courseName, current - 1);
+    broadcastActivity(user?.uid || '', userName || '', `logged attendance for ${courseName} 📚`);
   };
 
   const updateAbsence = async (courseName: string, count: number) => {

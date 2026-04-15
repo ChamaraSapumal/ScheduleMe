@@ -40,6 +40,33 @@ export async function registerForPushNotificationsAsync() {
     });
   }
 
+  // Register interactive categories for Dynamic Island and Notification Actions
+  await Notifications.setNotificationCategoryAsync('friend_request', [
+    {
+      identifier: 'accept',
+      buttonTitle: 'Accept',
+      options: { isDestructive: false, isAuthenticationRequired: true },
+    },
+    {
+      identifier: 'reject',
+      buttonTitle: 'Reject',
+      options: { isDestructive: true, isAuthenticationRequired: true },
+    },
+  ]);
+
+  await Notifications.setNotificationCategoryAsync('group_request', [
+    {
+      identifier: 'approve',
+      buttonTitle: 'Approve',
+      options: { isDestructive: false, isAuthenticationRequired: true },
+    },
+    {
+      identifier: 'decline',
+      buttonTitle: 'Decline',
+      options: { isDestructive: true, isAuthenticationRequired: true },
+    },
+  ]);
+
   return finalStatus;
 }
 

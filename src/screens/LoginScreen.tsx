@@ -1,7 +1,8 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { auth, db } from '../config/firebase';
+import { ref, set } from 'firebase/database';
 import { AuthContext } from '../context/AuthContext';
 import { useCustomAlert } from '../context/AlertContext';
 import { colors, spacing } from '../theme';
@@ -36,6 +37,18 @@ export default function LoginScreen() {
           console.log("Triggered welcome email.");
         } catch (e) {
           console.log("Email trigger failed:", e);
+        }
+
+        // Auto-create RTDB profile so they appear in Community immediately
+        try {
+          const profileRef = ref(db, `users/${userCredential.user.uid}/profile`);
+          await set(profileRef, {
+            name: email.split('@')[0], // Use email prefix as default name
+            totalScore: 0,
+            communityVisibility: true // Show them in community right away
+          });
+        } catch (e) {
+          console.log("RTDB profile creation failed:", e);
         }
         
       } else {
